@@ -1,0 +1,190 @@
+<html>
+
+<head>
+    <title>PosenetPositioningAudio</title>
+    <style>
+        body {
+            background-color: #000000;
+            margin: 0px;
+            overflow: hidden;
+        }
+
+        #container {}
+    </style>
+
+</head>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+
+
+<body>
+
+    <!--These are the main divs for three.js and street view-->
+    <div id='container'></div>
+
+    <!--Here all the p5, three.js, jquery, tensorflow(masking) libaries.  Coming from http CDN addresses allows us to share this code
+    without sharing the files for the libaries-->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/addons/p5.dom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.7/addons/p5.sound.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/102/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/effects/StereoEffect.js"></script>
+    <script src="https://threejs.org/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://threejs.org/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://threejs.org/examples/js/controls/DeviceOrientationControls.js"></script>
+
+
+    <script src="https://unpkg.com/ml5@1/dist/ml5.min.js"></script>
+    <!-- This is all of our local code-->
+    <script src="pano_mouse.js"></script>
+    <!--  <script src="p5.speech.js"></script> -->
+
+
+    <p id='status'>Loading model...</p>
+    <!-- Instead of having a separate js file the main javascript is added using script tags-->
+    <script>
+        //usual 3D variables
+        let scene;
+        let camera3D;
+        let renderer;
+
+        //bodyPose variables
+        let video;
+        let bodyPose;
+        let poses = [];
+
+
+        let videoTexture;
+        let videoElement;
+
+        let mySound;
+
+        function preload() {
+            // Load the bodyPose model
+            bodyPose = ml5.bodyPose();
+        }
+
+
+        //like draw        
+        var animate = function () {
+
+            //recursively call this function is a way that the renderer does it in a smart way
+            requestAnimationFrame(animate);
+            //move the red cube around based on rightWrist info coming  from bodypos
+            if (poses.length > 0) {
+                //find the right wrist locations from bodypos
+
+                //pan the camera depending on which hand you raise.
+                if (poses[0].right_wrist.confidence > 0.1 && poses[0].right_wrist.y < 300) {
+                    console.log("right");
+                    camera3D.rotation.y += 0.01;
+                } else if (poses[0].left_wrist.confidence > 0.1 && poses[0].left_wrist.y < 300) {
+                    console.log("left");
+                    camera3D.rotation.y -= 0.01;
+                }
+
+                let distBetweenEyes = dist(poses[0].right_ear.x, poses[0].right_ear.y, poses[0].left_ear.x, poses[0].left_ear.y);
+                let cameraZDistance = map(distBetweenEyes, 30, 70, 700, 200);
+
+                //  console.log("distBetweenEyes " + distBetweenEyes + " cameraZDistance " + cameraZDistance, poses[0].left_wrist.y);
+                camera3D.position.z = cameraZDistance;
+
+            }
+
+            renderer.render(scene, camera3D);
+        };
+
+        function setup() {
+            //same as init but some p5 stuff needs to be called from setup
+            console.log("setup  ");
+
+            //This makes a primitive cube to be a proxy for a point from Posenet
+            // Create a new poseNet method with a single detection
+            video = createCapture(VIDEO);
+            //video.size(width, height);
+            bodyPose.detectStart(video, function (results) {
+                poses = results;
+
+                //these get used in draw
+            });
+
+            // Hide the video element, and just show the canvas
+            video.hide();
+        }
+
+        function mousePressed() {
+            if (mySound.isPlaying) {
+                mySound.pause();
+            } else {
+                mySound.play();
+            }
+        }
+
+        //like setup
+        function init() {
+            container = document.getElementById('container');
+            console.log("initializing three.js")
+            basic3DStuff()
+            activatePanoControl(camera3D); //field mouse dragggin to move camera
+            mySound = createSoundObject("ShakeOff.mp3");
+            poseNetProxy.add(mySound);
+
+        }
+
+        init();  //like setup but you have to call it yourself
+        animate();  //like draw you have to kick start and then it calls itself
+        function createSoundObject(filename) {
+            var audioLoader = new THREE.AudioLoader();
+            var listener = new THREE.AudioListener();
+            camera3D.add(listener);
+            var sound1 = new THREE.PositionalAudio(listener);
+            audioLoader.load(filename, function (buffer) {
+                sound1.setBuffer(buffer);
+                sound1.setRefDistance(20);
+                sound1.play();
+                console.log("play");
+            });
+            return sound1;
+        }
+
+
+
+
+
+
+        function basic3DStuff() {
+            console.log("adding 3D stuff")
+            //all three.js programs have a scene, a camera and a renderer
+            scene = new THREE.Scene();
+            camera3D = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera3D.position.z = 0;
+            // document.body.appendChild(renderer.domElement);
+            //this puts the three.js stuff in a particular div
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            //add some lights if you want
+            var ambient = new THREE.HemisphereLight(0xbbbbff, 0x886666, 0.75);
+            ambient.position.set(-0.5, 0.75, -1);
+            scene.add(ambient);
+
+            var light = new THREE.DirectionalLight(0xffffff, 0.75);
+            light.position.set(1, 0.75, 0.5);
+            scene.add(light);
+
+
+            var geometry = new THREE.BoxGeometry(20, 20, 20);
+            var material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            poseNetProxy = new THREE.Mesh(geometry, material);
+            scene.add(poseNetProxy);
+            poseNetProxy.position.z = 0;
+
+
+        }
+
+    </script>
+</body>
+
+</html>

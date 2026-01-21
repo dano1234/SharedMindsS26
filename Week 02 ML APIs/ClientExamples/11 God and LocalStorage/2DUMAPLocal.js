@@ -1,0 +1,344 @@
+import { UMAP } from "https://cdn.skypack.dev/umap-js";
+
+
+
+let canvas = document.createElement('canvas');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+canvas.style.position = "absolute";
+canvas.style.left = "0px";
+canvas.style.top = "0px";
+document.body.append(canvas);
+let ctx = canvas.getContext('2d');
+
+//can you create a feedback div
+let feedback = document.createElement('div');
+feedback.style.position = "absolute";
+feedback.style.left = "50%";
+feedback.style.top = "50%";
+feedback.style.transform = "translate(-50%,-50%)";
+feedback.style.width = "350px";
+feedback.style.backgroundColor = "rgba(255,255,255,.5)";
+feedback.style.padding = "10px";
+feedback.style.borderRadius = "5px";
+feedback.style.zIndex = "1000";
+document.body.append(feedback);
+
+
+
+// Top toolbar with three fields and action buttons
+let topBar = document.createElement('div');
+topBar.style.position = "fixed";
+topBar.style.left = "0";
+topBar.style.top = "0";
+topBar.style.right = "0";
+topBar.style.zIndex = "1001";
+topBar.style.background = "rgba(255,255,255,0.95)";
+topBar.style.padding = "10px";
+topBar.style.display = "flex";
+topBar.style.alignItems = "flex-start";
+topBar.style.gap = "10px";
+topBar.style.flexWrap = "wrap";
+document.body.append(topBar);
+
+let beforeField = document.createElement('textarea');
+beforeField.placeholder = "Phrase before";
+beforeField.style.flex = "0 0 30%";
+beforeField.style.height = "72px";
+beforeField.style.resize = "vertical";
+beforeField.rows = 3;
+beforeField.value = "give me a flat json object with 36 short descriptions of perspectives with about the topic of ";
+
+let mainField = document.createElement('input');
+mainField.type = "text";
+mainField.placeholder = "Enter concept";
+mainField.style.flex = "1";
+
+let afterField = document.createElement('textarea');
+afterField.placeholder = "Phrase after";
+afterField.style.flex = "0 0 35%";
+afterField.style.height = "72px";
+afterField.style.resize = "vertical";
+afterField.rows = 3;
+afterField.value = " organized into 6 different types of people who might have that diverse and differing perspectives.  Please only use the fields description and type.";
+
+let addBtn = document.createElement('button');
+addBtn.textContent = "Add To Local  Storage Collection";
+
+let clearBtn = document.createElement('button');
+clearBtn.textContent = "Clear Local Storage";
+
+let umapBtn = document.createElement('button'); //for UMAP the local storage collection (and add it to the local storage)
+umapBtn.textContent = "Use UMAP";
+
+// Buttons column to stack buttons and show feedback underneath
+let buttonsCol = document.createElement('div');
+buttonsCol.style.display = "flex";
+buttonsCol.style.flexDirection = "column";
+buttonsCol.style.alignItems = "flex-start";
+buttonsCol.style.gap = "6px";
+buttonsCol.style.flex = "0 0 220px";
+
+buttonsCol.append(addBtn, clearBtn, umapBtn);
+
+topBar.append(beforeField, mainField, afterField, buttonsCol);
+
+// Track sentence nodes so we can clear them later
+let sentenceDivs = [];
+
+// Place feedback directly under the buttons in the right column
+buttonsCol.appendChild(feedback);
+feedback.style.position = "static";
+feedback.style.top = "";
+feedback.style.left = "";
+feedback.style.right = "";
+feedback.style.transform = "";
+feedback.style.width = "100%";
+feedback.style.marginTop = "6px";
+feedback.style.color = "red";
+
+init();
+
+function init() {
+
+    let localInfo = localStorage.getItem("embeddings");
+    if (localInfo) {
+        let allInfo = JSON.parse(localInfo);
+        runUMAP(allInfo);
+    }
+    else {
+        console.log("no localembeddings");
+    }
+}
+
+// Wire up top bar interactions
+addBtn.addEventListener('click', () => {
+    let concept = (mainField.value || '').trim();
+    if (!concept) {
+        feedback.innerHTML = "Please enter a concept in the middle field.";
+        return;
+    }
+    createUniverse(concept);
+});
+
+clearBtn.addEventListener('click', () => {
+    localStorage.removeItem("embeddings");
+    for (let node of sentenceDivs) {
+        try { node.remove(); } catch (e) { }
+    }
+    sentenceDivs = [];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    feedback.innerHTML = "Localhost collection cleared.";
+});
+
+umapBtn.addEventListener('click', () => {
+    let localInfo = localStorage.getItem("embeddings");
+    if (!localInfo) {
+        feedback.innerHTML = "No data in localhost. Add items first.";
+        return;
+    }
+    try {
+        let allInfo = JSON.parse(localInfo);
+        feedback.innerHTML = "Running UMAP on local collection...";
+        runUMAP(allInfo);
+    } catch (e) {
+        feedback.innerHTML = "Local data is corrupt. Try clearing it.";
+    }
+});
+
+mainField.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') addBtn.click();
+});
+
+function placeSentence(sentence, fitting, type) {
+    console.log("placeSentence", sentence, fitting);
+    // ctx.font = "20px Arial";
+    // ctx.fillStyle = "rgba(100,100,100,127)";
+    // let w = ctx.measureText(sentence).width;
+    // console.log(canvas.width, canvas.height, fitting[0] * canvas.width, fitting[1] * canvas.height);
+    // ctx.fillText(sentence, (fitting[0] * canvas.width) - w / 2, (fitting[1] * canvas.height) + 30);
+
+    //or use DOM elements
+    let sentenceDiv = document.createElement('div');
+    sentenceDiv.style.position = "absolute";
+    sentenceDiv.style.left = fitting[0] * window.innerWidth + "px";
+    sentenceDiv.style.top = fitting[1] * window.innerHeight + "px";
+    sentenceDiv.style.transform = "translate(-100%,-50%)";
+    sentenceDiv.style.width = "100px";
+    sentenceDiv.style.backgroundColor = "rgba(255,255,255,.5)";
+    sentenceDiv.style.fontSize = "10px"; // default smaller text
+    sentenceDiv.style.color = "#777"; // lighter grey
+    sentenceDiv.style.transition = "color 120ms ease, font-size 120ms ease";
+    sentenceDiv.style.zIndex = "1";
+    sentenceDiv.innerHTML = sentence;
+    document.body.append(sentenceDiv);
+    sentenceDivs.push(sentenceDiv);
+
+    // Hover behavior: turn text red on mouse over
+    sentenceDiv.addEventListener('mouseenter', () => {
+        sentenceDiv.style.color = "red";
+        sentenceDiv.style.fontSize = "12px"; // slightly bigger on hover
+        sentenceDiv.style.zIndex = "100"; // lift above other labels
+    });
+    sentenceDiv.addEventListener('mouseleave', () => {
+        sentenceDiv.style.color = "#777";
+        sentenceDiv.style.fontSize = "10px";
+        sentenceDiv.style.zIndex = "1";
+    });
+}
+
+async function createUniverse(concept) {
+    document.body.style.cursor = "progress";
+    const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+    //Get Auth Token from: https://itp-ima-replicate-proxy.web.app/
+    //  const authToken = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjA1NTc3MjZmYWIxMjMxZmEyZGNjNTcyMWExMDgzZGE2ODBjNGE3M2YiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiRGFuIE8nU3VsbGl2YW4iLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jSmhrcTc0NjBZNzNWSWNTdk9QdlVhYnJhVmdmS2RHTENnMWJkTHlNaDdwTDc1LVJtUno9czk2LWMiLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vaXRwLWltYS1yZXBsaWNhdGUtcHJveHkiLCJhdWQiOiJpdHAtaW1hLXJlcGxpY2F0ZS1wcm94eSIsImF1dGhfdGltZSI6MTc1ODY0OTY3NCwidXNlcl9pZCI6IkN0VDlRc2ZySnFQc3doR29zTDZ6QWEyVFhTWTIiLCJzdWIiOiJDdFQ5UXNmckpxUHN3aEdvc0w2ekFhMlRYU1kyIiwiaWF0IjoxNzU4NjQ5Njc0LCJleHAiOjE3NTg2NTMyNzQsImVtYWlsIjoiZGJvM0BueXUuZWR1IiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZ29vZ2xlLmNvbSI6WyIxMDA5Njk1NjkyMjY5NDIyMjQ0NjciXSwiZW1haWwiOlsiZGJvM0BueXUuZWR1Il19LCJzaWduX2luX3Byb3ZpZGVyIjoiZ29vZ2xlLmNvbSJ9fQ.Rqlmpkdqe1BNeQ4OlaMeT-16Js-UqC4pyUJ02h_pHTqgNDiHBIJ7hYrLV8aSWjE-erK2KijD014tXcCbOmripXmhXzkKzDiKdYDSzi-HglTP9OA8O3BoTe5le3zXs0qYhaowAbiNnzmpCmOq2PAmookA4Jufon0ar80RlOilEWq2zcohwvNMAS58zJVlyztSJPIMTromUZL4XQ0H0QULdujOVELFtyYI_MOF-flU_QhYtui31GfvxC0nG2CfLBETejrrAPRqkUAAQF3SlYDMiln0tX1jA3KpSygmd0tKVfC7kVYua0r8CElUDyBXLC7L5oluEbDrcWSiDR-SLYmitQ";
+    const authToken = "";
+    let text = (beforeField.value || "") + concept + (afterField.value || "");
+    // // feedback.html("Waiting for reply from OpenAi...");
+
+    ///////////GET SENTENCES
+    //I want to give feedback as to our progress
+    feedback.innerHTML = "Waiting for AI to make up some perspectives";
+    const data = {
+        model: "openai/gpt-5-structured",
+        input: {
+            prompt: text,
+            system_prompt: "in the output, disregard the type and return just the descriptions",
+
+        }
+    };
+    let options = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(data),
+    };
+
+    console.log("words options", options);
+    const response = await fetch(replicateProxy, options);
+    const response_json = await response.json()
+    console.log("response_json", response_json);
+    let list = response_json.output.json_output;
+    console.log("list", list);
+    let justDescriptions = [];
+    let justTypes = [];
+
+    //sometimes it returns as a array and sometimes as a object can you convert associated array to an array of the values
+    if (!Array.isArray(list)) {
+        list = Object.values(list);
+    }
+    feedback.innerHTML = "Got " + list.length + "perspectives, waiting for AI embedding for the perspectives";
+    for (let i = 0; i < list.length; i++) {
+        let thisDescription = list[i].type + ":" + list[i].description;
+        let thisType = list[i].type;
+        justTypes.push(thisType);
+        justDescriptions.push(thisDescription);
+    }
+    console.log("justDescriptions", justDescriptions);
+    const data2 = {
+        version: "beautyyuyanli/multilingual-e5-large:a06276a89f1a902d5fc225a9ca32b6e8e6292b7f3b136518878da97c458e2bad", // multilingual-e5-large
+        input: {
+            texts: JSON.stringify(justDescriptions),
+        },
+    }
+    console.log("data2", data2);
+    const options2 = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(data2),
+    };
+
+    const response2 = await fetch(replicateProxy, options2);
+    const response_json2 = await response2.json();
+    console.log("response_json2", response_json2.output);
+    let justEmbeddings = response_json2.output;
+
+    //it says .thml is not function.  what should it be?
+    feedback.innerHTML = "Got " + justEmbeddings.length + " embeddings, running UMAP";
+
+    let allInfo = localStorage.getItem("embeddings");
+
+    // Merge with existing if requested
+    if (allInfo) {
+        let prev = JSON.parse(allInfo);
+        console.log("appending to existing embeddings");
+        allInfo = {
+            embeddings: prev.embeddings.concat(justEmbeddings),
+            types: prev.types.concat(justTypes),
+            descriptions: prev.descriptions.concat(justDescriptions),
+        };
+    } else {
+        console.log("all new embeddings");
+        allInfo = {
+            embeddings: justEmbeddings,
+            types: justTypes,
+            descriptions: justDescriptions
+        };
+    }
+    localStorage.setItem("embeddings", JSON.stringify(allInfo));
+    runUMAP(allInfo)
+    document.body.style.cursor = "default";
+}
+
+
+
+function runUMAP(allInfo) {
+
+    //comes back with a list of embeddings and Sentences, single out the embeddings for UMAP
+
+    let embeddings = allInfo.embeddings;
+
+    //let fittings = runUMAP(embeddings);
+    var myrng = new Math.seedrandom('hello.');
+    let umap = new UMAP({
+        nNeighbors: 6,
+        minDist: 0.9,
+        nComponents: 2,
+        random: myrng,  //special library seeded random so it is the same randome numbers every time
+        spread: 0.99,
+        // distanceFn: 'cosine',
+    });
+    // Clear previous sentences
+    for (let node of sentenceDivs) {
+        try { node.remove(); } catch (e) { }
+    }
+    sentenceDivs = [];
+
+    let fittings = umap.fit(embeddings);
+    fittings = normalize(fittings);  //normalize to 0-1
+    for (let i = 0; i < allInfo.descriptions.length; i++) {
+        placeSentence(allInfo.descriptions[i], fittings[i], allInfo.types[i]);
+    }
+    //console.log("fitting", fitting);
+}
+
+
+
+function normalize(arrayOfNumbers) {
+    //find max and min in the array
+    let max = [0, 0];
+    let min = [0, 0];
+    for (let i = 0; i < arrayOfNumbers.length; i++) {
+        for (let j = 0; j < 2; j++) {
+            if (arrayOfNumbers[i][j] > max[j]) {
+                max[j] = arrayOfNumbers[i][j];
+            }
+            if (arrayOfNumbers[i][j] < min[j]) {
+                min[j] = arrayOfNumbers[i][j];
+            }
+        }
+    }
+    //normalize
+    for (let i = 0; i < arrayOfNumbers.length; i++) {
+        for (let j = 0; j < 2; j++) {
+            arrayOfNumbers[i][j] = (arrayOfNumbers[i][j] - min[j]) / (max[j] - min[j]);
+        }
+    }
+    return arrayOfNumbers;
+}

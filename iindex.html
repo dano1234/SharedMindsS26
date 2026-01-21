@@ -1,0 +1,27 @@
+<html>
+<meta http-equiv='cache-control' content='no-cache'>
+<meta http-equiv='expires' content='0'>
+<link rel="icon" href="#">
+
+<body>
+    <H1>This Takes a Long Time to Load...</H1>
+    <script>
+        //moved to glitch proxy to insert git access token, code in file indexMovedToGlitch.html
+        //glitch proxy here https://glitch.com/edit/#!/getgit
+        let query = "gitURL=https://api.github.com/repos/dano1234/SharedMindsF25/contents/&pagesRoot=https://dano1234.github.io/SharedMindsF24/";
+        const url = "https://getgit.glitch.me/getGit/?" + query
+        console.log('url', url);
+        async function fetchDirectoryContents() {
+
+            let response = await fetch(url)
+            let data = await response.json();
+
+            console.log('htmlString', data.htmlString);
+            document.body.innerHTML = data.htmlString;
+        }
+        fetchDirectoryContents();
+
+    </script>
+</body>
+
+</html>
