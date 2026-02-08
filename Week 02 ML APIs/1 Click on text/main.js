@@ -40,6 +40,42 @@ function init() {
     animate();
 }
 
+
+document.addEventListener('mousemove', function (event) {
+    //move the text if it is being dragged
+    for (let i = 0; i < texts.length; i++) {
+        if (texts[i].isDragging) {
+            texts[i].x = event.clientX;
+            texts[i].y = event.clientY;
+        }
+    }
+    console.log("mousemove");
+});
+document.addEventListener('mouseup', function (event) {
+    console.log("mouseup");
+});
+document.addEventListener('mousedown', function (event) {
+    //check if the mouse is over any of the texts
+    for (let i = 0; i < texts.length; i++) {
+        if (hitTest(event.clientX, event.clientY, texts[i])) {
+            console.log("Mouse clicked on text: ", texts[i].text);
+            texts[i].isDragging = true;
+            texts[i].startX = event.clientX;
+            texts[i].startY = event.clientY;
+            texts[i].xDirection = 0;
+            texts[i].yDirection = 0;
+            break;
+        }
+    }
+});
+//need hitTest function
+function hitTest(mouseX, mouseY, textObj) {
+    ctx.font = '30px Arial';
+    const width = ctx.measureText(textObj.text).width;
+    const height = 30; // font size
+    // Text is drawn from baseline, so top of text is at y - height
+    return mouseX >= textObj.x && mouseX <= textObj.x + width && mouseY >= textObj.y - height && mouseY <= textObj.y;
+}
 function checkEdges(text) {
     if (text.x > canvas.width) {
         text.xDirection = -text.xDirection;
@@ -71,48 +107,6 @@ function animate() {
     }
     //console.log("animate");
 }
-//mouse listener for mouse down
-document.addEventListener('mousedown', (event) => {
 
-    //look through the texts array and see if the mouse is over any of the texts
-    for (let i = 0; i < texts.length; i++) {
-        if (hitTest(event.clientX, event.clientY, texts[i])) {
-            console.log("Mouse clicked on text: ", texts[i].text);
-            texts[i].isDragging = true;
-            texts[i].startX = event.clientX;
-            texts[i].startY = event.clientY;
-            texts[i].xDirection = 0;
-            texts[i].yDirection = 0;
-            break;
-        }
-    }
-});
 
-function hitTest(mouseX, mouseY, textObj) {
-    ctx.font = '30px Arial';
-    const width = ctx.measureText(textObj.text).width;
-    const height = 30; // font size
-    // Text is drawn from baseline, so top of text is at y - height
-    return mouseX >= textObj.x && mouseX <= textObj.x + width && mouseY >= textObj.y - height && mouseY <= textObj.y;
-}
-//mouse listener for mouse move
-document.addEventListener('mousemove', (event) => {
-    //look through the texts array and see if the mouse is over any of the texts
-    for (let i = 0; i < texts.length; i++) {
-        if (texts[i].isDragging) {
-            texts[i].x = event.clientX;
-            texts[i].y = event.clientY;
-        }
-    }
-});
 
-//mouse listener for mouse up
-document.addEventListener('mouseup', (event) => {
-
-    //look through the texts array and see if the mouse is over any of the texts
-    for (let i = 0; i < texts.length; i++) {
-        if (texts[i].isDragging) {
-            texts[i].isDragging = false;
-        }
-    }
-});

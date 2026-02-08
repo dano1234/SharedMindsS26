@@ -52,8 +52,10 @@ async function askWord(word, location) {
     document.body.style.cursor = "progress";
     const data = {
         model: "openai/gpt-5",
+
         input: {
             prompt: prompt,
+
         },
     };
     console.log("Making a Fetch Request", data);
