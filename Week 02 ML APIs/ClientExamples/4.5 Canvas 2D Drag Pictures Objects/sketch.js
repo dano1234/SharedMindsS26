@@ -9,7 +9,6 @@ let currentObject = -1;
 let mouseDown = false;
 let promptWords = [];
 
-const url = "https://replicate-api-proxy.glitch.me/create_n_get/";
 
 init();
 
