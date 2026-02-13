@@ -2,19 +2,19 @@
 let inputLocationX = window.innerWidth / 2;
 let inputLocationY = window.innerHeight / 2;
 
-let visualObjects = [];
+let visualObjectsJSON = [];
 let canvas;
 let inputBox;
 let currentObject = -1;
 let mouseDown = false;
 let promptWords = [];
 
-const url = "https://replicate-api-proxy.glitch.me/create_n_get/";
-
 init();
 
 function init() {
     // Perform initialization logic here
+    visualObjectsJSON = loadJSONFromLocalStorage();
+
     initInterface();
     animate();
 }
@@ -24,11 +24,14 @@ function animate() {
     // Perform animation logic here
     let ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < visualObjects.length; i++) {
-        visualObjects[i].display();
+    for (let i = 0; i < visualObjectsJSON.length; i++) {
+        displayJSONObject(visualObjectsJSON[i]);
+
     }
     requestAnimationFrame(animate);
 }
+
+
 
 
 async function askPictures(promptWord, location) {
@@ -66,28 +69,36 @@ async function askPictures(promptWord, location) {
     document.body.style.cursor = "auto";
     console.log("json_response", json_response);
 
-    if (json_response.length == 0) {
-        console.log("Something went wrong, try it again");
-    } else {
 
-        let img = document.createElement("img");
-        //document.body.appendChild(img);
-        img.style.position = 'absolute';
-        img.style.left = location.x + 'px';
-        img.style.top = location.y + 'px';
-        img.style.width = '256px';
-        img.style.height = '256px';
-        img.src = json_response.output;
-        let newVisualObject = new VisualObject(promptWord, img, location.x, location.y, 256, 256);
-        visualObjects.push(newVisualObject);
+    let img = document.createElement("img");
+    //document.body.appendChild(img);
+    img.style.position = 'absolute';
+    img.style.left = location.x + 'px';
+    img.style.top = location.y + 'px';
+    img.style.width = '256px';
+    img.style.height = '256px';
+    img.src = json_response.output;
 
+    newObject = {
+        prompt: data.input.prompt,
+        imageURL: json_response.output,
+        imageModel: data.model,
+        x: location.x,
+        y: location.y,
+        img: img,
+        width: 256,
+        height: 256
     }
+    visualObjectsJSON.push(newObject);
+    saveJSONToLocalStorage();
+
     document.body.style.cursor = "auto";
     inputBoxDirectionX = 1;
     inputBoxDirectionY = 1;
     inputBox.style.display = 'block';
     inputBox.value = '';
 }
+
 
 
 
@@ -142,14 +153,12 @@ function initInterface() {
         mouseDown = true;
         // Check if the mouse is clicked on any of the words
         currentObject = -1;
-        for (let i = 0; i < visualObjects.length; i++) {
-            let thisVisualObject = visualObjects[i];
-            if (thisVisualObject.isOver(event.clientX, event.clientY)) {
-
+        for (let i = 0; i < visualObjectsJSON.length; i++) {
+            let thisVisualObject = visualObjectsJSON[i];
+            if (isOverJSONObject(thisVisualObject, event.clientX, event.clientY)) {
                 currentObject = i;
                 break;
             }
-
         }
         console.log("Clicked on ", currentObject);
     });
@@ -158,13 +167,15 @@ function initInterface() {
         //move words around
         if (mouseDown && currentObject > -1) {
             console.log("Mouse moved");
-            let thisLocation = { x: event.clientX, y: event.clientY };
-            visualObjects[currentObject].setLocation(thisLocation);
+            visualObjectsJSON[currentObject].x = event.clientX;
+            visualObjectsJSON[currentObject].y = event.clientY;
         }
 
     });
     document.addEventListener('mouseup', (event) => {
         mouseDown = false
+        saveJSONToLocalStorage();
+
     });
 
     // Add event listener to the document for double click event
@@ -181,33 +192,42 @@ function initInterface() {
 }
 
 
+function isOverJSONObject(jsonObject, x, y) {
+    return (x > jsonObject.x && x < jsonObject.x + jsonObject.width && y > jsonObject.y && y < jsonObject.y + jsonObject.height);
+}
+function displayJSONObject(jsonObject) {
+    let ctx = canvas.getContext('2d');
+    // Update logic for the visual object
+    ctx.drawImage(jsonObject.img, jsonObject.x, jsonObject.y, jsonObject.width, jsonObject.height);
+    ctx.font = '20px Arial';
+    ctx.fillStyle = 'black';
+    let textWidth = ctx.measureText(jsonObject.prompt).width;
+    ctx.fillText(jsonObject.prompt, jsonObject.x + jsonObject.width / 2 - textWidth / 2, jsonObject.y + jsonObject.height + 20);
+}
 
-class VisualObject {
-    constructor(prompt, img, x, y, w, h) {
-        this.prompt = prompt;
-        this.x = x;
-        this.y = y;
-        this.img = img;
-        this.width = w;
-        this.height = h;
-    }
-    setLocation(location) {
+function saveJSONToLocalStorage() {
+    localStorage.setItem('visualObjectsJSON', JSON.stringify(visualObjectsJSON));
+    console.log("JSON saved to localStorage");
+}
 
-        this.x = location.x;
-        this.y = location.y;
-    }
-    isOver(x, y) {
-        return (x > this.x && x < this.x + this.width && y > this.y && y < this.y + this.height);
-    }
+function loadJSONFromLocalStorage() {
 
-    display() {
-        let ctx = canvas.getContext('2d');
-        // Update logic for the visual object
-        ctx.drawImage(this.img, this.x, this.y, this.width, this.height);
-        ctx.font = '20px Arial';
-        ctx.fillStyle = 'black';
-        let textWidth = ctx.measureText(this.prompt).width;
-        ctx.fillText(this.prompt, this.x + this.width / 2 - textWidth / 2, this.y + this.height + 20);
+    loadedJSON = JSON.parse(localStorage.getItem('visualObjectsJSON'));
+    if (!loadedJSON) {
+        console.log("No JSON found in localStorage");
+        return [];
     }
+    for (let i = 0; i < loadedJSON.length; i++) {
+        let thisVisualObject = loadedJSON[i];
+        let img = document.createElement("img");
+        img.style.position = 'absolute';
+        img.style.left = loadedJSON[i].x + 'px';
+        img.style.top = loadedJSON[i].y + 'px';
+        img.style.width = '256px';
+        img.style.height = '256px';
+        img.src = loadedJSON[i].imageURL;
+        loadedJSON[i].img = img;
+    }
+    return loadedJSON;
 }
 

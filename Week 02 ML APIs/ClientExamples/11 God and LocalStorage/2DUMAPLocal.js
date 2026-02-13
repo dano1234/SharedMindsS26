@@ -44,8 +44,9 @@ document.body.append(topBar);
 let beforeField = document.createElement('textarea');
 beforeField.placeholder = "Phrase before";
 beforeField.style.flex = "0 0 30%";
+beforeField.style.height = "72px";
 beforeField.style.resize = "vertical";
-beforeField.rows = 1;
+beforeField.rows = 3;
 beforeField.value = "give me a flat json object with 36 short descriptions of perspectives with about the topic of ";
 
 let mainField = document.createElement('input');
@@ -56,31 +57,27 @@ mainField.style.flex = "1";
 let afterField = document.createElement('textarea');
 afterField.placeholder = "Phrase after";
 afterField.style.flex = "0 0 35%";
+afterField.style.height = "72px";
 afterField.style.resize = "vertical";
-afterField.rows = 1;
+afterField.rows = 3;
 afterField.value = " organized into 6 different types of people who might have that diverse and differing perspectives.  Please only use the fields description and type.";
 
 let addBtn = document.createElement('button');
-addBtn.textContent = "Add To Local Storage";
-addBtn.style.whiteSpace = "nowrap";
-addBtn.style.fontSize = "12px";
+addBtn.textContent = "Add To Local  Storage Collection";
 
 let clearBtn = document.createElement('button');
 clearBtn.textContent = "Clear Local Storage";
-clearBtn.style.whiteSpace = "nowrap";
-clearBtn.style.fontSize = "12px";
 
 let umapBtn = document.createElement('button'); //for UMAP the local storage collection (and add it to the local storage)
 umapBtn.textContent = "Use UMAP";
-umapBtn.style.whiteSpace = "nowrap";
-umapBtn.style.fontSize = "12px";
 
-// Buttons row to display buttons inline with text fields
+// Buttons column to stack buttons and show feedback underneath
 let buttonsCol = document.createElement('div');
 buttonsCol.style.display = "flex";
-buttonsCol.style.flexDirection = "row";
-buttonsCol.style.alignItems = "center";
+buttonsCol.style.flexDirection = "column";
+buttonsCol.style.alignItems = "flex-start";
 buttonsCol.style.gap = "6px";
+buttonsCol.style.flex = "0 0 220px";
 
 buttonsCol.append(addBtn, clearBtn, umapBtn);
 
