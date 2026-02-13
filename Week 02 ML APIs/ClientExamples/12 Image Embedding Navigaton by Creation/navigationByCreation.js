@@ -11,6 +11,7 @@ let hoveredPersonName = null;
 let drawOrder = [];
 let mePromptInput = null;
 let isUpdatingMe = false;
+let isBusyWithProxy = false; // true while either proxy function is in-flight
 let statusSpan = null; // compact progress text in the top toolbar
 
 init();
@@ -18,10 +19,11 @@ init();
 function init() {
     // Perform initialization logic here
     people = loadJSONFromLocalStorage();
-    if (Object.keys(people).length > 0) {
-        runUMAP(people);
-    }
+    console.log("people", people);
     initInterface();
+    if (Object.keys(people).length > 0) {
+        runUMAP();
+    }
     animate();
 }
 
@@ -36,9 +38,25 @@ function animate() {
         const personObj = people[personName];
         if (!personObj) continue; // skip entries that no longer exist
         // Draw image
-        ctx.drawImage(personObj.img, personObj.x, personObj.y, personObj.width, personObj.height);
-        // Special frame for the "me" element to make it stand out
+        if (personObj.img && personObj.img.complete && personObj.img.naturalWidth > 0) {
+            ctx.drawImage(personObj.img, personObj.x, personObj.y, personObj.width, personObj.height);
+        } else {
+            // Fallback placeholder while image loads or if broken
+            ctx.save();
+            ctx.fillStyle = '#eee';
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 1;
+            ctx.fillRect(personObj.x, personObj.y, personObj.width, personObj.height);
+            ctx.strokeRect(personObj.x, personObj.y, personObj.width, personObj.height);
+            ctx.restore();
+        }
+        // Special frame for the "me" element — extends down past the caption panel
+        // so it visually wraps the image + name + prompt input as one unit
         if (personName === 'me') {
+            const captionOverlap = 6;
+            const captionHeight = 34;
+            const inputHeight = 36; // approximate height of the mePromptInput
+            const totalHeight = personObj.height - captionOverlap + captionHeight + inputHeight + 4;
             ctx.save();
             ctx.lineWidth = 5;
             ctx.strokeStyle = 'rgba(30, 144, 255, 0.95)'; // dodgerblue
@@ -48,7 +66,7 @@ function animate() {
                 personObj.x - 4,
                 personObj.y - 4,
                 personObj.width + 8,
-                personObj.height + 8
+                totalHeight + 8
             );
             ctx.restore();
         }
@@ -114,12 +132,15 @@ function randomPosition() {
 // Ask LLM for a person (name, walkOfLife, imagePrompt), then create image + embedding, add to people
 async function addPeopleFromSubject() {
     try {
+        if (statusSpan) statusSpan.textContent = "Making up people...";
+
         const subject = (inputBox.value || '').trim();
         if (!subject) {
             alert('Enter a subject in the input box first.');
             return;
         }
-        document.body.style.cursor = 'progress';
+        isBusyWithProxy = true;
+        document.body.style.cursor = 'wait';
         const replicateProxy = 'https://itp-ima-replicate-proxy.web.app/api/create_n_get';
         const llmPrompt =
             'You are creating 10 characters for a visual canvas. ' +
@@ -217,6 +238,7 @@ async function addPeopleFromSubject() {
         console.error('addPeopleFromSubject error', e);
         alert('Failed to add person. See console for details.');
     } finally {
+        isBusyWithProxy = false;
         document.body.style.cursor = 'auto';
     }
 }
@@ -237,7 +259,7 @@ function initInterface() {
     canvas.style.height = '100%';
     let ctx = canvas.getContext('2d');
     document.body.appendChild(canvas);
-    console.log('canvas', canvas.width, canvas.height);
+    //console.log('canvas', canvas.width, canvas.height);
 
     // Keep canvas sized to window and keep items on-screen on resize
     window.addEventListener('resize', () => {
@@ -253,7 +275,10 @@ function initInterface() {
         const mouseY = event.clientY - rect.top;
         const hitName = hitTestPersonAt(mouseX, mouseY);
         hoveredPersonName = hitName;
-        document.body.style.cursor = hitName ? 'pointer' : 'default';
+        // Don't override the wait cursor while a proxy call is in-flight
+        if (!isBusyWithProxy) {
+            document.body.style.cursor = hitName ? 'pointer' : 'default';
+        }
     });
 
     // Click to bring an item to the top of the render stack
@@ -369,18 +394,14 @@ function initInterface() {
 
     // runUMAP button
     const runUMAPBtn = document.createElement('button');
-    runUMAPBtn.textContent = 'runUMAP';
+    runUMAPBtn.textContent = 'Fit';
     runUMAPBtn.style.zIndex = '100';
     runUMAPBtn.style.fontSize = '16px';
     runUMAPBtn.className = 'ui-btn';
     runUMAPBtn.addEventListener('click', () => {
-        try {
-            runUMAP();
-            saveJSONToLocalStorage();
-        } catch (e) {
-            console.error('runUMAP button error', e);
-            alert('Failed to run UMAP. See console for details.');
-        }
+        runUMAP();
+        saveJSONToLocalStorage();
+
     });
     toolbar.appendChild(runUMAPBtn);
 
@@ -392,12 +413,8 @@ function initInterface() {
     snapBtn.className = 'ui-btn';
     snapBtn.title = 'Remove half the people (keeps "me") and re-layout';
     snapBtn.addEventListener('click', () => {
-        try {
-            snapClearHalfAndSave();
-        } catch (e) {
-            console.error('Snap error', e);
-            alert('Failed to snap. See console for details.');
-        }
+        snapClearHalfAndSave();
+
     });
     toolbar.appendChild(snapBtn);
 
@@ -414,10 +431,10 @@ function initInterface() {
     mePromptInput.style.position = 'absolute';
     mePromptInput.style.fontSize = '18px';
     mePromptInput.style.zIndex = '200';
-    // Match the polaroid strip look
+    // Match the blue "me" frame
     mePromptInput.style.background = 'rgba(255,255,255,0.92)';
-    mePromptInput.style.border = '1px solid rgba(0,0,0,0.08)';
-    mePromptInput.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+    mePromptInput.style.border = 'none';
+    mePromptInput.style.boxShadow = 'none';
     mePromptInput.style.padding = '6px 8px';
     mePromptInput.style.margin = '0';
     mePromptInput.style.outline = 'none';
@@ -429,6 +446,7 @@ function initInterface() {
 
             const val = (mePromptInput.value || '').trim();
             if (!val) return;
+
             newPromptFromMe(val);
         }
     });
@@ -437,8 +455,7 @@ function initInterface() {
 
 
 function runUMAP() {
-
-    //comes back with a list of embeddings and Sentences, single out the embeddings for UMAP
+    console.log("running UMAP");
 
     // Build deterministic list of names so indexes align across steps
     const personNames = Object.keys(people);
@@ -454,42 +471,34 @@ function runUMAP() {
         console.warn('Unexpected embedding shape for', name, emb);
         return new Array(768).fill(0);
     });
-    console.log("embeddings", embeddings);
 
-    //let fittings = runUMAP(embeddings);
-    var myrng = new Math.seedrandom('hello.');
-    // Cosine distance for high-dimensional embeddings
-    const cosineDistance = (a, b) => {
-        let dot = 0;
-        let na = 0;
-        let nb = 0;
-        for (let i = 0; i < a.length; i++) {
-            const ai = a[i];
-            const bi = b[i];
-            dot += ai * bi;
-            na += ai * ai;
-            nb += bi * bi;
-        }
-        const denom = Math.sqrt(na) * Math.sqrt(nb) || 1; // avoid divide-by-zero
-        const cosineSim = dot / denom;
-        return 1 - Math.max(-1, Math.min(1, cosineSim));
-    };
+    // DIAGNOSTIC: log first 5 values of "me" embedding so we can verify it changes between runs
+    const meIdx = personNames.indexOf('me');
+    if (meIdx !== -1) {
+        console.log(`DIAG: "me" embedding first 5 values:`, embeddings[meIdx].slice(0, 5));
+    }
+
+    // Use a NEW random seed each call so UMAP can produce different layouts
+    // when embeddings change. (Old seeded RNG always produced the same init.)
+    var myrng = new Math.seedrandom(Date.now().toString());
     let umap = new UMAP({
         nNeighbors: 3,
         minDist: 0.9,
         nComponents: 2,
-        random: myrng,  // special library seeded random so it is deterministic
-        spread: 0.99,
-        distanceFn: cosineDistance,
+        random: myrng,
+        spread: 0.99
     });
 
+    const umap2DPoints = umap.fit(embeddings);
 
-    const umap2DPoints = umap.fit(embeddings); // array of [x, y] in UMAP space (arbitrary range)
-    console.log("umap2DPoints", umap2DPoints);
+    // DIAGNOSTIC: log "me" 2D position so we can see if it actually changes
+    if (meIdx !== -1) {
+        console.log(`DIAG: "me" umap2D point:`, umap2DPoints[meIdx]);
+    }
+
     // Normalize and project to pixels (stores normalizedX/Y for responsive resizing)
     setNormalizedAndProjectToCanvas(umap2DPoints, personNames);
     console.log("people", people);
-    //console.log("fitting", fitting);
 }
 
 
@@ -556,52 +565,48 @@ function setNormalizedAndProjectToCanvas(umapPoints, orderedNames) {
  * Then generates a new image and embedding (same flow as batch),
  * updates the "me" entry, saves, and re-runs UMAP for a fresh layout.
  */
-async function newPromptFromMe(leadingText) {
+async function newPromptFromMe(p_prompt) {
     if (isUpdatingMe) return; // guard against rapid double-press
     isUpdatingMe = true;
     const meObj = people['me'];
-    if (!meObj) {
-        alert('No "me" person found yet. Add people first.');
-        isUpdatingMe = false;
-        return;
-    }
-    const leading = (leadingText || '').trim();
-    if (!leading) { isUpdatingMe = false; return; }
 
-    // Build new prompt: prepend leading words, drop the same count from the tail
-    const numLeadingWords = leading.split(/\s+/).filter(Boolean).length;
-    const meWords = (meObj.prompt || '').trim().split(/\s+/).filter(Boolean);
-    const keepUpTo = Math.max(0, meWords.length - numLeadingWords);
-    const trimmedBase = meWords.slice(0, keepUpTo).join(' ');
-    const newPrompt =
-        trimmedBase.length > 0 ? `${leading} ${trimmedBase}` : leading;
-    meObj.prompt = newPrompt;
-    if (mePromptInput) mePromptInput.value = '';
-
-    // Fetch new image and embedding using same proxy flow as batch
     try {
-        document.body.style.cursor = 'progress';
+        if (statusSpan) statusSpan.textContent = `Getting New Image for me...`;
+        isBusyWithProxy = true;
+        document.body.style.cursor = 'wait';
         const replicateProxy = 'https://itp-ima-replicate-proxy.web.app/api/create_n_get';
 
-        // 1) Image from prompt
+        meObj.prompt = p_prompt;
+        // 1) Image from prompt (use known-good model)
         let data = {
             model: 'google/imagen-4-fast',
-            input: { prompt: newPrompt }
+            input: {
+                prompt: meObj.prompt
+            }
         };
         let options = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Authorization': `Bearer ${authToken}`,
             },
             body: JSON.stringify(data),
         };
+        console.log("data", data);
         let resp = await fetch(replicateProxy, options);
+        if (!resp.ok) {
+            throw new Error(`Image request failed (${resp.status})`);
+        }
         const imgRes = await resp.json();
-        const imageURL = imgRes.output;
-
+        let imageURL = imgRes.output;
+        if (Array.isArray(imageURL)) imageURL = imageURL[0];
+        if (!imageURL || typeof imageURL !== 'string') {
+            throw new Error('Image URL not returned');
+        }
+        meObj.imageURL = imageURL;
+        console.log("imageURL", imageURL);
         // 2) Embedding for the image URL (same model as batch)
+        if (statusSpan) statusSpan.textContent = `Getting a new embedding me...`;
         data = {
             model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
             input: { inputs: imageURL } // use image embedding, not text-of-URL
@@ -616,13 +621,27 @@ async function newPromptFromMe(leadingText) {
             body: JSON.stringify(data),
         };
         resp = await fetch(replicateProxy, options);
+        if (!resp.ok) {
+            throw new Error(`Embedding request failed (${resp.status})`);
+        }
         const embRes = await resp.json();
         const embedding = embRes.output;
-
+        if (!embedding) {
+            throw new Error('Embedding not returned');
+        }
+        console.log("embedding", embedding);
         // 3) Update "me" record in-place
-        meObj.imageURL = imageURL;
-        meObj.img = meObj.img || document.createElement('img');
-        meObj.img.src = imageURL;
+        // Preload image; only swap in after it loads successfully
+        const newImg = new Image();
+        newImg.crossOrigin = 'anonymous';
+        newImg.onload = () => {
+            meObj.img = newImg;
+            positionMePromptInput();
+        };
+        newImg.onerror = () => {
+            console.warn('"me" image failed to load', imageURL);
+        };
+        newImg.src = imageURL;
         meObj.embedding = embedding; // shape: [{ embedding: number[] }]
         console.log('Updated "me" embedding length:', Array.isArray(embedding) && embedding[0] ? embedding[0].embedding.length : 'unknown');
 
@@ -631,17 +650,21 @@ async function newPromptFromMe(leadingText) {
         if (idx !== -1) drawOrder.splice(idx, 1);
         drawOrder.push('me');
 
-        saveJSONToLocalStorage();
-        saveDrawOrderToLocalStorage();
 
         // 4) Recompute UMAP layout with the updated embedding
-        if (statusSpan) statusSpan.textContent = 'Fitting layout…';
+        if (statusSpan) statusSpan.textContent = 'Fitting layout for new me...';
+
         runUMAP();
-        if (statusSpan) statusSpan.textContent = `Done: ${Object.keys(people).length} people`;
+
+        saveJSONToLocalStorage();
+        saveDrawOrderToLocalStorage();
+        if (statusSpan) statusSpan.textContent = "Done:";
+        if (mePromptInput) mePromptInput.value = '';
     } catch (e) {
         console.error('newPromptFromMe error', e);
         alert('Failed to update "me" from prompt. See console for details.');
     } finally {
+        isBusyWithProxy = false;
         document.body.style.cursor = 'auto';
         isUpdatingMe = false;
     }
@@ -747,11 +770,8 @@ function saveJSONToLocalStorage() {
 }
 
 function saveDrawOrderToLocalStorage() {
-    try {
-        localStorage.setItem('people_draw_order', JSON.stringify(drawOrder));
-    } catch (e) {
-        console.warn('Failed to save draw order', e);
-    }
+    localStorage.setItem('people_draw_order', JSON.stringify(drawOrder));
+
 }
 
 function loadJSONFromLocalStorage() {
@@ -765,15 +785,19 @@ function loadJSONFromLocalStorage() {
         return {};
     }
     for (let person in loadedJSON) {
+        const url = loadedJSON[person].imageURL;
         let img = document.createElement("img");
-        // img.style.position = 'absolute';
-        // img.style.left = loadedJSON[person].x + 'px';
-        // img.style.top = loadedJSON[person].y + 'px';
-        // img.style.width = '256px';
-        // img.style.height = '256px';
         loadedJSON[person].img = img;
-        img.src = loadedJSON[person].imageURL;
-
+        img.onload = () => { };
+        img.onerror = () => {
+            console.warn('Image failed to load from storage for', person, url);
+        };
+        if (url && typeof url === 'string') {
+            img.src = url;
+        } else {
+            // Keep record but don't set src; UI will render a placeholder instead of throwing
+            console.warn('Missing imageURL in storage for', person);
+        }
     }
 
     // Load draw order (if present), filter to existing people, and append any missing
