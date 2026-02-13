@@ -11,6 +11,7 @@ let hoveredPersonName = null;
 let drawOrder = [];
 let mePromptInput = null;
 let isUpdatingMe = false;
+let statusSpan = null; // compact progress text in the top toolbar
 
 init();
 
@@ -140,6 +141,7 @@ async function addPeopleFromSubject() {
         console.log("llm", out);
         let births = JSON.parse(out.join(""));
         console.log("births", births);
+        if (statusSpan) statusSpan.textContent = `LLM: ${births.length} characters`;
         births[0].name = "me";
         for (let i = 0; i < births.length; i++) {
             let thisBirth = births[i];
@@ -148,6 +150,7 @@ async function addPeopleFromSubject() {
             let imagePrompt = thisBirth.imagePrompt;
 
             // 2) Image
+            if (statusSpan) statusSpan.textContent = `Image ${i + 1}/${births.length} — ${personName}`;
             data = {
                 model: 'google/imagen-4-fast',
                 input: {
@@ -165,10 +168,11 @@ async function addPeopleFromSubject() {
             let imageURL = imgRes.output;
 
             // 3) Embedding
+            if (statusSpan) statusSpan.textContent = `Embed ${i + 1}/${births.length} — ${personName}`;
             data = {
                 model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
                 input: {
-                    image: imageURL
+                    inputs: imageURL
                 }
             };
             options = {
@@ -205,7 +209,9 @@ async function addPeopleFromSubject() {
         }
         saveJSONToLocalStorage();
         saveDrawOrderToLocalStorage();
+        if (statusSpan) statusSpan.textContent = 'Fitting layout…';
         runUMAP();
+        if (statusSpan) statusSpan.textContent = `Done: ${Object.keys(people).length} people`;
 
     } catch (e) {
         console.error('addPeopleFromSubject error', e);
@@ -270,7 +276,7 @@ function initInterface() {
     // Top toolbar container (left-justified)
     const toolbar = document.createElement('div');
     toolbar.setAttribute('id', 'topToolbar');
-    toolbar.style.position = 'absolute';
+    toolbar.style.position = 'fixed';
     toolbar.style.top = '12px';
     toolbar.style.left = '12px';
     toolbar.style.zIndex = '300';
@@ -278,6 +284,66 @@ function initInterface() {
     toolbar.style.alignItems = 'center';
     toolbar.style.gap = '8px';
     document.body.appendChild(toolbar);
+
+    // Inject compact UI styles for inputs/buttons/status (always on top, readable)
+    (() => {
+        const id = 'nav-create-ui-styles';
+        if (document.getElementById(id)) return;
+        const style = document.createElement('style');
+        style.id = id;
+        style.textContent = `
+		#topToolbar{
+			z-index:1000;
+			background:rgba(255,255,255,0.85);
+			border:1px solid rgba(0,0,0,0.08);
+			border-radius:10px;
+			padding:10px 12px;
+			box-shadow:0 4px 16px rgba(0,0,0,0.12);
+			backdrop-filter:saturate(120%) blur(6px);
+		}
+		#topToolbar .ui-input{
+			font:600 18px/1.2 "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+			padding:8px 12px;
+			border:1px solid #d0d7de;
+			border-radius:8px;
+			background:#fff;
+			color:#111;
+			min-width:320px;
+			outline:none;
+			box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);
+		}
+		#topToolbar .ui-input::placeholder{ color:#777; }
+		#topToolbar .ui-input:focus{
+			border-color:#0969da;
+			box-shadow:0 0 0 3px rgba(9,105,218,0.2), inset 0 1px 2px rgba(0,0,0,0.06);
+		}
+		#topToolbar .ui-btn{
+			font:600 14px/1 "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+			color:#111;
+			background:#f6f8fa;
+			border:1px solid #d0d7de;
+			border-radius:8px;
+			padding:10px 12px;
+			cursor:pointer;
+			transition:all .15s ease;
+		}
+		#topToolbar .ui-btn:hover{ background:#eef1f4; transform:translateY(-1px); }
+		#topToolbar .ui-btn:active{ transform:translateY(0); }
+		#topToolbar .ui-btn.primary{
+			background:#0969da; color:#fff; border-color:#0969da;
+		}
+		#topToolbar .ui-btn.primary:hover{ background:#075bbd; }
+		#topToolbar .status{
+			font:500 14px/1.2 "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+			color:#111;
+			white-space:nowrap;
+			max-width:40vw;
+			overflow:hidden;
+			text-overflow:ellipsis;
+		}
+		`;
+        document.head.appendChild(style);
+    })();
 
     inputBox = document.createElement('input');
     inputBox.value = "The Last Supper";
@@ -287,6 +353,7 @@ function initInterface() {
     inputBox.style.zIndex = '100';
     inputBox.style.fontSize = '30px';
     inputBox.style.fontFamily = 'Arial';
+    inputBox.className = 'ui-input';
     toolbar.appendChild(inputBox);
     inputBox.setAttribute('autocomplete', 'off');
 
@@ -296,6 +363,7 @@ function initInterface() {
     addBtn.textContent = 'Add People';
     addBtn.style.zIndex = '100';
     addBtn.style.fontSize = '16px';
+    addBtn.className = 'ui-btn primary';
     addBtn.addEventListener('click', addPeopleFromSubject);
     toolbar.appendChild(addBtn);
 
@@ -304,6 +372,7 @@ function initInterface() {
     runUMAPBtn.textContent = 'runUMAP';
     runUMAPBtn.style.zIndex = '100';
     runUMAPBtn.style.fontSize = '16px';
+    runUMAPBtn.className = 'ui-btn';
     runUMAPBtn.addEventListener('click', () => {
         try {
             runUMAP();
@@ -320,6 +389,7 @@ function initInterface() {
     snapBtn.textContent = 'Snap';
     snapBtn.style.zIndex = '100';
     snapBtn.style.fontSize = '16px';
+    snapBtn.className = 'ui-btn';
     snapBtn.title = 'Remove half the people (keeps "me") and re-layout';
     snapBtn.addEventListener('click', () => {
         try {
@@ -330,6 +400,12 @@ function initInterface() {
         }
     });
     toolbar.appendChild(snapBtn);
+
+    // Status text (compact) – placed to the right of Snap button
+    statusSpan = document.createElement('span');
+    statusSpan.className = 'status';
+    statusSpan.textContent = 'Ready';
+    toolbar.appendChild(statusSpan);
 
     // Create a dedicated prompt input for the "me" element (hidden until "me" exists)
     mePromptInput = document.createElement('input');
@@ -528,7 +604,7 @@ async function newPromptFromMe(leadingText) {
         // 2) Embedding for the image URL (same model as batch)
         data = {
             model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
-            input: { image: imageURL } // use image embedding, not text-of-URL
+            input: { inputs: imageURL } // use image embedding, not text-of-URL
         };
         options = {
             method: 'POST',
@@ -559,7 +635,9 @@ async function newPromptFromMe(leadingText) {
         saveDrawOrderToLocalStorage();
 
         // 4) Recompute UMAP layout with the updated embedding
+        if (statusSpan) statusSpan.textContent = 'Fitting layout…';
         runUMAP();
+        if (statusSpan) statusSpan.textContent = `Done: ${Object.keys(people).length} people`;
     } catch (e) {
         console.error('newPromptFromMe error', e);
         alert('Failed to update "me" from prompt. See console for details.');
