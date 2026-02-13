@@ -1,7 +1,7 @@
 
 import { UMAP } from "https://cdn.skypack.dev/umap-js";
 
-
+const numberOfPeopleToAdd = 10;
 let canvas;
 let inputBox;
 let people = {};
@@ -15,6 +15,8 @@ let isBusyWithProxy = false; // true while either proxy function is in-flight
 let statusSpan = null; // compact progress text in the top toolbar
 
 init();
+
+
 
 function init() {
     // Perform initialization logic here
@@ -119,6 +121,129 @@ function animate() {
 }
 
 
+/**
+ * Uses the text typed under "me" to produce a new prompt by
+ * prepending those words to the existing "me" prompt and removing
+ * the same number of words from the END of the existing prompt.
+ *
+ * Example:
+ * - Existing: "ancient marble statue with vines"
+ * - Typed:    "rusty"
+ * - New:      "rusty ancient marble statue with"
+ *
+ * Then generates a new image and embedding (same flow as batch),
+ * updates the "me" entry, saves, and re-runs UMAP for a fresh layout.
+ */
+async function newPromptFromMe(p_prompt) {
+    if (isUpdatingMe) return; // guard against rapid double-press
+    isUpdatingMe = true;
+    const meObj = people['me'];
+
+
+    if (statusSpan) statusSpan.textContent = `Getting New Image for me...`;
+    isBusyWithProxy = true;
+    document.body.style.cursor = 'wait';
+    const replicateProxy = 'https://itp-ima-replicate-proxy.web.app/api/create_n_get';
+
+    meObj.prompt = p_prompt;
+    // 1) Image from prompt (use known-good model)
+    const base64Image = imageToBase64(meObj.img);
+    const base64SizeKB = Math.round((base64Image.length * 3 / 4) / 1024);
+    console.log(`Base64 image size: ${base64SizeKB} KB (${base64Image.length} chars, ${base64Image.substring(0, 30)}...)`);
+
+    let data = {
+        //model: 'google/imagen-4-fast',
+        model: 'google/nano-banana-pro',
+        input: {
+            prompt: meObj.prompt,
+            image_input: [base64Image],
+        }
+    };
+    let options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify(data),
+    };
+    console.log("data", data);
+    let resp = await fetch(replicateProxy, options);
+
+    const imgRes = await resp.json();
+    let imageURL = imgRes.output;
+    //if (Array.isArray(imageURL)) imageURL = imageURL[0];
+
+    meObj.imageURL = imageURL;
+    console.log("imageURL", imageURL);
+    // 2) Embedding for the image URL (same model as batch)
+    if (statusSpan) statusSpan.textContent = `Getting a new embedding me...`;
+    data = {
+        model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
+        input: { inputs: imageURL } // use image embedding, not text-of-URL
+    };
+    options = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(data),
+    };
+    resp = await fetch(replicateProxy, options);
+
+    const embRes = await resp.json();
+    const embedding = embRes.output;
+
+    console.log("embedding", embedding);
+    // 3) Update "me" record in-place
+    // Preload image; only swap in after it loads successfully
+    const newImg = new Image();
+    newImg.crossOrigin = 'anonymous';
+    newImg.onload = () => {
+        meObj.img = newImg;
+        positionMePromptInput();
+    };
+    newImg.onerror = () => {
+        console.warn('"me" image failed to load', imageURL);
+    };
+    newImg.src = imageURL;
+    meObj.embedding = embedding; // shape: [{ embedding: number[] }]
+    console.log('Updated "me" embedding length:', Array.isArray(embedding) && embedding[0] ? embedding[0].embedding.length : 'unknown');
+
+    // Keep "me" on top visually
+    const idx = drawOrder.indexOf('me');
+    if (idx !== -1) drawOrder.splice(idx, 1);
+    drawOrder.push('me');
+
+    // 4) Recompute UMAP layout with the updated embedding
+    if (statusSpan) statusSpan.textContent = 'Fitting layout for new me...';
+
+    runUMAP();
+
+    saveJSONToLocalStorage();
+    saveDrawOrderToLocalStorage();
+    if (statusSpan) statusSpan.textContent = "Done:";
+    if (mePromptInput) mePromptInput.value = '';
+
+    isBusyWithProxy = false;
+    document.body.style.cursor = 'auto';
+    isUpdatingMe = false;
+}
+
+function imageToBase64(imgElement, maxSize = 512, quality = 0.7) {
+    const c = document.createElement('canvas');
+    // Scale down to maxSize x maxSize, preserving aspect ratio
+    const w = imgElement.naturalWidth;
+    const h = imgElement.naturalHeight;
+    const scale = Math.min(maxSize / w, maxSize / h, 1); // never scale up
+    c.width = Math.round(w * scale);
+    c.height = Math.round(h * scale);
+    c.getContext('2d').drawImage(imgElement, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', quality); // JPEG with compression
+}
+
 // Choose a random position for a 256x256 image within the canvas
 function randomPosition() {
     const margin = 10;
@@ -143,7 +268,7 @@ async function addPeopleFromSubject() {
         document.body.style.cursor = 'wait';
         const replicateProxy = 'https://itp-ima-replicate-proxy.web.app/api/create_n_get';
         const llmPrompt =
-            'You are creating 10 characters for a visual canvas. ' +
+            'You are creating ' + numberOfPeopleToAdd + ' characters for a visual canvas. ' +
             'Given the subject: \"' + subject + '\" produce STRICT JSON with keys ' +
             '{ \"name\": string, \"walkOfLife\": string, \"imagePrompt\": string }. ' +
             'Keep it short. Turn up the temperature to 1.0. and make it weirder. Do NOT include any extra text.';
@@ -204,9 +329,10 @@ async function addPeopleFromSubject() {
             resp = await fetch(replicateProxy, options);
             const embRes = await resp.json();
             const embedding = embRes.output;
-
+            console.log("embedding of 10", embedding);
             // 4) Add person
             const img = document.createElement('img');
+            img.crossOrigin = 'anonymous';
             img.src = imageURL;
             let pos = randomPosition();
             people[personName] = {
@@ -478,15 +604,28 @@ function runUMAP() {
         console.log(`DIAG: "me" embedding first 5 values:`, embeddings[meIdx].slice(0, 5));
     }
 
+    // Cosine distance for high-dimensional CLIP embeddings
+    const cosineDistance = (a, b) => {
+        let dot = 0, na = 0, nb = 0;
+        for (let i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            na += a[i] * a[i];
+            nb += b[i] * b[i];
+        }
+        const denom = Math.sqrt(na) * Math.sqrt(nb) || 1;
+        return 1 - dot / denom;
+    };
+
     // Use a NEW random seed each call so UMAP can produce different layouts
-    // when embeddings change. (Old seeded RNG always produced the same init.)
+    // when embeddings change.
     var myrng = new Math.seedrandom(Date.now().toString());
     let umap = new UMAP({
         nNeighbors: 3,
         minDist: 0.9,
         nComponents: 2,
         random: myrng,
-        spread: 0.99
+        spread: 0.99,
+        distanceFn: cosineDistance
     });
 
     const umap2DPoints = umap.fit(embeddings);
@@ -552,123 +691,6 @@ function setNormalizedAndProjectToCanvas(umapPoints, orderedNames) {
     projectNormalizedToCanvasWithMargins();
 }
 
-/**
- * Uses the text typed under "me" to produce a new prompt by
- * prepending those words to the existing "me" prompt and removing
- * the same number of words from the END of the existing prompt.
- *
- * Example:
- * - Existing: "ancient marble statue with vines"
- * - Typed:    "rusty"
- * - New:      "rusty ancient marble statue with"
- *
- * Then generates a new image and embedding (same flow as batch),
- * updates the "me" entry, saves, and re-runs UMAP for a fresh layout.
- */
-async function newPromptFromMe(p_prompt) {
-    if (isUpdatingMe) return; // guard against rapid double-press
-    isUpdatingMe = true;
-    const meObj = people['me'];
-
-    try {
-        if (statusSpan) statusSpan.textContent = `Getting New Image for me...`;
-        isBusyWithProxy = true;
-        document.body.style.cursor = 'wait';
-        const replicateProxy = 'https://itp-ima-replicate-proxy.web.app/api/create_n_get';
-
-        meObj.prompt = p_prompt;
-        // 1) Image from prompt (use known-good model)
-        let data = {
-            model: 'google/imagen-4-fast',
-            input: {
-                prompt: meObj.prompt
-            }
-        };
-        let options = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
-            body: JSON.stringify(data),
-        };
-        console.log("data", data);
-        let resp = await fetch(replicateProxy, options);
-        if (!resp.ok) {
-            throw new Error(`Image request failed (${resp.status})`);
-        }
-        const imgRes = await resp.json();
-        let imageURL = imgRes.output;
-        if (Array.isArray(imageURL)) imageURL = imageURL[0];
-        if (!imageURL || typeof imageURL !== 'string') {
-            throw new Error('Image URL not returned');
-        }
-        meObj.imageURL = imageURL;
-        console.log("imageURL", imageURL);
-        // 2) Embedding for the image URL (same model as batch)
-        if (statusSpan) statusSpan.textContent = `Getting a new embedding me...`;
-        data = {
-            model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
-            input: { inputs: imageURL } // use image embedding, not text-of-URL
-        };
-        options = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${authToken}`,
-            },
-            body: JSON.stringify(data),
-        };
-        resp = await fetch(replicateProxy, options);
-        if (!resp.ok) {
-            throw new Error(`Embedding request failed (${resp.status})`);
-        }
-        const embRes = await resp.json();
-        const embedding = embRes.output;
-        if (!embedding) {
-            throw new Error('Embedding not returned');
-        }
-        console.log("embedding", embedding);
-        // 3) Update "me" record in-place
-        // Preload image; only swap in after it loads successfully
-        const newImg = new Image();
-        newImg.crossOrigin = 'anonymous';
-        newImg.onload = () => {
-            meObj.img = newImg;
-            positionMePromptInput();
-        };
-        newImg.onerror = () => {
-            console.warn('"me" image failed to load', imageURL);
-        };
-        newImg.src = imageURL;
-        meObj.embedding = embedding; // shape: [{ embedding: number[] }]
-        console.log('Updated "me" embedding length:', Array.isArray(embedding) && embedding[0] ? embedding[0].embedding.length : 'unknown');
-
-        // Keep "me" on top visually
-        const idx = drawOrder.indexOf('me');
-        if (idx !== -1) drawOrder.splice(idx, 1);
-        drawOrder.push('me');
-
-
-        // 4) Recompute UMAP layout with the updated embedding
-        if (statusSpan) statusSpan.textContent = 'Fitting layout for new me...';
-
-        runUMAP();
-
-        saveJSONToLocalStorage();
-        saveDrawOrderToLocalStorage();
-        if (statusSpan) statusSpan.textContent = "Done:";
-        if (mePromptInput) mePromptInput.value = '';
-    } catch (e) {
-        console.error('newPromptFromMe error', e);
-        alert('Failed to update "me" from prompt. See console for details.');
-    } finally {
-        isBusyWithProxy = false;
-        document.body.style.cursor = 'auto';
-        isUpdatingMe = false;
-    }
-}
 
 
 /**
@@ -787,6 +809,7 @@ function loadJSONFromLocalStorage() {
     for (let person in loadedJSON) {
         const url = loadedJSON[person].imageURL;
         let img = document.createElement("img");
+        img.crossOrigin = 'anonymous';
         loadedJSON[person].img = img;
         img.onload = () => { };
         img.onerror = () => {
