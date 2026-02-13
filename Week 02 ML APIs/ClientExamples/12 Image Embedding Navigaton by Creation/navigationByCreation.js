@@ -147,13 +147,21 @@ async function newPromptFromMe(p_prompt) {
 
     meObj.prompt = p_prompt;
     // 1) Image from prompt (use known-good model)
-    const base64Image = imageToBase64(meObj.img);
-    const base64SizeKB = Math.round((base64Image.length * 3 / 4) / 1024);
-    console.log(`Base64 image size: ${base64SizeKB} KB (${base64Image.length} chars, ${base64Image.substring(0, 30)}...)`);
+    // const hasValidImage = meObj.img && meObj.img.complete && meObj.img.naturalWidth > 0;
+    // const base64Image = hasValidImage
+    //     ? imageToBase64(meObj.img)
+    //     : generateNoiseBase64(512, 512);
+    // const base64SizeKB = Math.round((base64Image.length * 3 / 4) / 1024);
+    let base64Image = generateNoiseBase64(512, 512);
+    if (meObj.imageURL) {
+        base64Image = imageToBase64(meObj.img);
+    }
+    //console.log(`Base64 image size: ${base64SizeKB} KB (${base64Image.length} chars, ${base64Image.substring(0, 30)}...)`);
+
 
     let data = {
         //model: 'google/imagen-4-fast',
-        model: 'google/nano-banana-pro',
+        model: "google/nano-banana",
         input: {
             prompt: meObj.prompt,
             image_input: [base64Image],
@@ -164,6 +172,7 @@ async function newPromptFromMe(p_prompt) {
         headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify(data),
     };
@@ -172,6 +181,7 @@ async function newPromptFromMe(p_prompt) {
 
     const imgRes = await resp.json();
     let imageURL = imgRes.output;
+    console.log("imageURL", imgRes)
     //if (Array.isArray(imageURL)) imageURL = imageURL[0];
 
     meObj.imageURL = imageURL;
@@ -180,7 +190,7 @@ async function newPromptFromMe(p_prompt) {
     if (statusSpan) statusSpan.textContent = `Getting a new embedding me...`;
     data = {
         model: 'andreasjansson/clip-features:75b33f253f7714a281ad3e9b28f63e3232d583716ef6718f2e46641077ea040a',
-        input: { inputs: imageURL } // use image embedding, not text-of-URL
+        //input: { inputs: imageURL } // use image embedding, not text-of-URL
     };
     options = {
         method: 'POST',
@@ -230,6 +240,22 @@ async function newPromptFromMe(p_prompt) {
     isBusyWithProxy = false;
     document.body.style.cursor = 'auto';
     isUpdatingMe = false;
+}
+
+function generateNoiseBase64(w = 512, h = 512) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    const imageData = ctx.createImageData(w, h);
+    for (let i = 0; i < imageData.data.length; i += 4) {
+        imageData.data[i] = Math.random() * 255 | 0; // R
+        imageData.data[i + 1] = Math.random() * 255 | 0; // G
+        imageData.data[i + 2] = Math.random() * 255 | 0; // B
+        imageData.data[i + 3] = 255;                      // A
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return c.toDataURL('image/jpeg', 0.7);
 }
 
 function imageToBase64(imgElement, maxSize = 512, quality = 0.7) {
