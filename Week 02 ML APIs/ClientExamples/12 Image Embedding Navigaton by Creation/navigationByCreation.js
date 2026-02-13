@@ -233,7 +233,7 @@ async function newPromptFromMe(p_prompt) {
     runUMAP();
 
     saveJSONToLocalStorage();
-    saveDrawOrderToLocalStorage();
+
     if (statusSpan) statusSpan.textContent = "Done:";
     if (mePromptInput) mePromptInput.value = '';
 
@@ -381,7 +381,7 @@ async function addPeopleFromSubject() {
             }
         }
         saveJSONToLocalStorage();
-        saveDrawOrderToLocalStorage();
+
         if (statusSpan) statusSpan.textContent = 'Fitting layout…';
         runUMAP();
         if (statusSpan) statusSpan.textContent = `Done: ${Object.keys(people).length} people`;
@@ -447,7 +447,7 @@ function initInterface() {
         }
         drawOrder.push(hitName);
         hoveredPersonName = hitName;
-        saveDrawOrderToLocalStorage();
+
     });
 
     // Top toolbar container (left-justified)
@@ -776,7 +776,7 @@ function snapClearHalfAndSave() {
     drawOrder = drawOrder.filter((n) => n === 'me' || !removeSet.has(n));
     // Save and re-layout
     saveJSONToLocalStorage();
-    saveDrawOrderToLocalStorage();
+
     runUMAP();
 }
 /**
@@ -817,10 +817,6 @@ function saveJSONToLocalStorage() {
     console.log("JSON saved to localStorage");
 }
 
-function saveDrawOrderToLocalStorage() {
-    localStorage.setItem('people_draw_order', JSON.stringify(drawOrder));
-
-}
 
 function loadJSONFromLocalStorage() {
 
@@ -849,16 +845,8 @@ function loadJSONFromLocalStorage() {
         }
     }
 
-    // Load draw order (if present), filter to existing people, and append any missing
-    try {
-        const storedOrder = JSON.parse(localStorage.getItem('people_draw_order')) || [];
-        const filtered = storedOrder.filter((name) => loadedJSON[name]);
-        const missing = Object.keys(loadedJSON).filter((name) => !filtered.includes(name));
-        drawOrder = filtered.concat(missing);
-    } catch (e) {
-        // Fallback to natural key order on any error
-        drawOrder = Object.keys(loadedJSON);
-    }
+    // Initialize draw order from people keys; click to bring to front at runtime
+    drawOrder = Object.keys(loadedJSON);
 
     return loadedJSON;
 }
