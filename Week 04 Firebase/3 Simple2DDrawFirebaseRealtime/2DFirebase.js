@@ -63,25 +63,26 @@ function drawAll(x, y, text) {
         ctx.fillText(thisName, drawingInfo.location.x, drawingInfo.location.y);
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(drawingInfo.trail[0][0][0], drawingInfo.trail[0][0][1]);
-        for (let i = 1; i < drawingInfo.trail.length; i++) {
-            ctx.lineTo(drawingInfo.trail[i][0], drawingInfo.trail[i][1]);
+        if (drawingInfo.trail && drawingInfo.trail.length > 0) {
+            ctx.moveTo(drawingInfo.trail[0][0], drawingInfo.trail[0][1]);
+            for (let i = 1; i < drawingInfo.trail.length; i++) {
+                ctx.lineTo(drawingInfo.trail[i][0], drawingInfo.trail[i][1]);
+            }
+            ctx.stroke();
         }
 
     }
     //draw the current trail
-    ctx.stroke();
     ctx.strokeStyle = 'red';
     ctx.lineWidth = 3;
     ctx.beginPath();
     if (currentTrail.length > 0) {
-        ctx.moveTo(currentTrail[0][0][0], currentTrail[0][0][1]);
+        ctx.moveTo(currentTrail[0][0], currentTrail[0][1]);
         for (let i = 1; i < currentTrail.length; i++) {
             ctx.lineTo(currentTrail[i][0], currentTrail[i][1]);
         }
-        console.log("drawing", currentTrail);
+        ctx.stroke();
     }
-    // ctx.stroke();
 }
 
 function initFirebase() {

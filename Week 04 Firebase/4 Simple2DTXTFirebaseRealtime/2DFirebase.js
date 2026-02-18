@@ -87,6 +87,11 @@ function setInFirebase(folder, data) {
     }
 }
 
+function deleteFromFirebase(folder, key) {
+    const dbRef = ref(db, appName + '/' + folder + '/' + key);
+    set(dbRef, null);
+}
+
 function initInterface() {
     // Get the input box and the canvas element
     const canvas = document.createElement('canvas');
@@ -153,5 +158,28 @@ function initInterface() {
         isInteracting = false;
     });
 
+    // Add Snap button
+    const snapButton = document.createElement('button');
+    snapButton.textContent = 'Snap';
+    snapButton.style.position = 'absolute';
+    snapButton.style.top = '10px';
+    snapButton.style.left = '10px';
+    snapButton.style.zIndex = '100';
+    snapButton.style.padding = '10px 20px';
+    snapButton.style.fontSize = '16px';
+    snapButton.style.cursor = 'pointer';
+    document.body.appendChild(snapButton);
+
+    snapButton.addEventListener('click', () => {
+        const keys = Object.keys(allText);
+        const halfCount = Math.floor(keys.length / 2);
+        const shuffled = keys.sort(() => Math.random() - 0.5);
+        const toDelete = shuffled.slice(0, halfCount);
+        
+        for (let key of toDelete) {
+            deleteFromFirebase('texts', key);
+        }
+        console.log(`Snapped ${toDelete.length} items out of existence`);
+    });
 }
 
