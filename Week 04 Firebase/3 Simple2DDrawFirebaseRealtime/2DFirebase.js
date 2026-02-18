@@ -15,14 +15,15 @@ let allDrawings = {};
 
 ////FIREBASE STUFF
 const firebaseConfig = {
-    apiKey: "AIzaSyDHOrU4Lrtlmk-Af2svvlP8RiGsGvBLb_Q",
+    apiKey: "AIzaSyCSJsKBc1WbpHPFbLhnfXD3KglANYCQkHY",
     authDomain: "sharedmindss24.firebaseapp.com",
     databaseURL: "https://sharedmindss24-default-rtdb.firebaseio.com",
     projectId: "sharedmindss24",
     storageBucket: "sharedmindss24.appspot.com",
     messagingSenderId: "1039430447930",
-    appId: "1:1039430447930:web:edf98d7d993c21017ad603"
+    appId: "1:1039430447930:web:60ce004bdfb475e97ad603"
 };
+
 
 login();
 initInterface();
@@ -105,6 +106,7 @@ function initFirebase() {
         drawAll();
     });
 }
+
 
 function setInFirebase(folder, data) {
     //firebase will supply the key,  this will trigger "onChildAdded" below

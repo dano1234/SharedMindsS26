@@ -207,6 +207,30 @@ function initInterface() {
 
         console.log("Document double clicked");
     });
+
+    // Add Snap button
+    const snapButton = document.createElement('button');
+    snapButton.textContent = 'Snap';
+    snapButton.style.position = 'absolute';
+    snapButton.style.top = '10px';
+    snapButton.style.right = '10px';
+    snapButton.style.zIndex = '100';
+    snapButton.style.padding = '10px 20px';
+    snapButton.style.fontSize = '16px';
+    snapButton.style.cursor = 'pointer';
+    document.body.appendChild(snapButton);
+
+    snapButton.addEventListener('click', () => {
+        const keys = Object.keys(myObjectsByFirebaseKey);
+        const halfCount = Math.floor(keys.length / 2);
+        const shuffled = keys.sort(() => Math.random() - 0.5);
+        const toDelete = shuffled.slice(0, halfCount);
+        
+        for (let key of toDelete) {
+            deleteFromFirebase(exampleName, key);
+        }
+        console.log(`Snapped ${toDelete.length} items out of existence`);
+    });
 }
 
 
