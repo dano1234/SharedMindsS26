@@ -170,9 +170,15 @@ async function askForLatLong(query) {
         },
     };
     //due to CORS issues, we have to use a proxy
+    const proxyBase = "https://replicateproxy-tc5vweqxmq-uc.a.run.app/api";
+
+    //const proxyBase = 'https://itp-ima-replicate-proxy.web.app';
+    //const res = await fetch(`${proxyBase}/api/addressToLatLon?address=${encodeURIComponent(query)}`);
+    //const data = await res.json();
+
     //var url = "https://cors-anywhere.herokuapp.com/https://maps.googleapis.com/maps/api/geocode/json?address=" + query + "&key=" + api_key;
-    const url = "https://googlemapapiPROXY.glitch.me" + "/addressToLatLon?address=" + query
-    console.log("url", url, "options", options);
+    const url = proxyBase + "/addressToLatLon?address=" + query
+    //console.log("url", url, "options", options);
     const result = await fetch(url, options);
     //console.log("picture_response", picture_info);
     const data = await result.json();
