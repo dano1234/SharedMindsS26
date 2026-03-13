@@ -257,7 +257,7 @@ async function createUniverse(universalMotto) {
         },
         body: JSON.stringify(embeddingData),
     };
-    const replicateProxy = "https://replicate-api-proxy.glitch.me"
+    const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
     const replicateURL = replicateProxy + "/create_n_get/";
     console.log("url", replicateURL, "options", options);

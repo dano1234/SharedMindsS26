@@ -14,7 +14,7 @@ let hand1, hand2;
 let controller1, controller2;
 let controllerGrip1, controllerGrip2;
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 var objects = [];
 
 let hitTestableThings = [];  //things that will be tested for intersection

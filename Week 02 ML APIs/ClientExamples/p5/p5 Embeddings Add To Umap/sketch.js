@@ -1,4 +1,4 @@
-//const replicateProxy = "https://replicate-api-proxy.glitch.me";
+//const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 //const replicateProxy ="https://create-n-get-uk4oy2fojq-uc.a.run.app"
 //https://replicateproxy-tc5vweqxmq-uc.a.run.app
 //const replicateProxy = "https://replicateproxy-tc5vweqxmq-uc.a.run.app/predictions";

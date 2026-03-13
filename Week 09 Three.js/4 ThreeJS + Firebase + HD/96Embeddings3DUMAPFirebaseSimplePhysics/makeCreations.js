@@ -1,7 +1,7 @@
 
 import { storeInFirebase } from "./firebaseMOD.js";
 import { getPositionInFrontOfCamera } from "./3DStuff.js";
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
 export async function manufactureFakePrompts() {
     let text = "give me a json object with 36 prompts  for stable diffusion image generation organized into 6 themes"

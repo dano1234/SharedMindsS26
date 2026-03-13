@@ -190,7 +190,7 @@ class Cluster {
 
 async function createUniverse(universalMotto) {
     document.body.style.cursor = "progress";
-    let replicateProxy = "https://replicate-api-proxy.glitch.me"
+    let replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
     const openAIProxy = "https://openai-api-proxy.glitch.me";
     //let text = "give me a json object with 36 prompts  for stable diffusion image generation organized into 6 themes"
 
@@ -299,7 +299,7 @@ async function createUniverse(universalMotto) {
         },
         body: JSON.stringify(embeddingData),
     };
-    //replicateProxy = "https://replicate-api-proxy.glitch.me"
+    //replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
     const replicateURL = replicateProxy + "/create_n_get/";
     console.log("url", replicateURL, "options", options);

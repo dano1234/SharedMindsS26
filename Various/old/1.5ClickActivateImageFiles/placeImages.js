@@ -1,7 +1,7 @@
 
 let camera3D, scene, renderer;
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 let canvases = {};  //json object that keeps track of all the canvases in the scene by their threejs mesh uuid
 let hitTestableThings = [];  //things that will be tested for intersection
 let in_front_of_you;

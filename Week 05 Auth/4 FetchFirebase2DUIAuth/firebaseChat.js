@@ -5,7 +5,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebas
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 import { getDatabase, ref, set, query, orderByChild, equalTo, push, onValue, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
 
-const url = "https://replicate-api-proxy.glitch.me/create_n_get/";
+const url = "https://itp-ima-replicate-proxy.web.app/api/create_n_get/create_n_get/";
 
 let name;
 let db;

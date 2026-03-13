@@ -7,7 +7,7 @@ import { getDatabase, update, ref, push, onChildAdded, onChildChanged, onChildRe
 
 let clusterSize = 6;
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 var objects = [];
 
 

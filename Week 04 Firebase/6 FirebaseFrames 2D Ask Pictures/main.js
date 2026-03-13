@@ -54,7 +54,7 @@ function clearLocalScene() {
 async function askPictures(prompt, location) {
     document.body.style.cursor = "progress";
     const url = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
-    //Get Auth Token from: https://replicate-api-proxy.glitch.me/
+    //Get Auth Token from: https://itp-ima-replicate-proxy.web.app/api/create_n_get/
     let authToken = "";
 
     const data = {

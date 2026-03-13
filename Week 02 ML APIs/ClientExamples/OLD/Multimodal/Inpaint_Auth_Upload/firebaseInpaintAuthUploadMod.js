@@ -6,7 +6,7 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase
 import { getDatabase, ref, set, query, limitToLast, orderByChild, equalTo, push, onValue, onChildAdded, onChildChanged, onChildRemoved } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-database.js";
 
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
 
 

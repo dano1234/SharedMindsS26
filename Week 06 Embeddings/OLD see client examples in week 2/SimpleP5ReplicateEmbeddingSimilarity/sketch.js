@@ -1,4 +1,4 @@
-const replicateProxy = "https://replicate-api-proxy.glitch.me";
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 
 let distances = []
 function setup() {
@@ -47,7 +47,7 @@ async function askForEmbeddings(p_prompt) {
   console.log("Proxy Returned", output);
   distances = []
   let firstOne = output[0];
-  
+
   for (let i = 0; i < output.length; i++) {
     let thisOne = output[i];
     let cdist = cosineSimilarity(firstOne.embedding, thisOne.embedding);

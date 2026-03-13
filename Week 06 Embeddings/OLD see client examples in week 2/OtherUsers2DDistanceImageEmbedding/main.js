@@ -2,7 +2,7 @@ import * as FB from './firebaseAuth.js';
 
 let others = {};
 let me;
-const replicateProxy = "https://replicate-api-proxy.glitch.me";
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 let exampleName = "2DImageEmbeddingDistances";
 
 FB.initFirebase(function (user) {

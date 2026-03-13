@@ -1,4 +1,4 @@
-const replicateProxy = "https://replicate-api-proxy.glitch.me";
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 let img;
 let feedback;
 
@@ -42,8 +42,8 @@ async function askWithAudio(audio) {
   const response = await fetch(url, options);
   const response_json = await response.json();
   console.log("audio_response", response_json);
-  
-  
+
+
   feedback.html(response_json.output.transcription);
   document.body.style.cursor = "auto";
 }

@@ -6,7 +6,7 @@ let imagers = [];
 let currentImager = null;
 
 
-const url = "https://replicate-api-proxy.glitch.me/create_n_get/";
+const url = "https://itp-ima-replicate-proxy.web.app/api/create_n_get/create_n_get/";
 let mouseDown = false;
 
 init();

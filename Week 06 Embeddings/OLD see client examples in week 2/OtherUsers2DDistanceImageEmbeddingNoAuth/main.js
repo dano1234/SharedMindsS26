@@ -6,7 +6,7 @@ let me;
 let myKey;
 let db;
 let app;
-const replicateProxy = "https://replicate-api-proxy.glitch.me";
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
 let exampleName = "2DImageEmbeddingDistancesNoAuth";
 let user = prompt("Please enter your name", "Smarty Pants"); //cheap auth
 initFirebase();

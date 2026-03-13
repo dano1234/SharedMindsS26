@@ -113,7 +113,7 @@ function gotDisconnect(id) {
 async function askForSound(p_prompt) {
     inputField.value("Getting Results for: " + p_prompt);
     document.body.style.cursor = "progress";
-    const replicateProxy = "https://replicate-api-proxy.glitch.me"
+    const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
     //const imageDiv = select("#resulting_image");
     //imageDiv.html("Waiting for reply from Replicate's API...");

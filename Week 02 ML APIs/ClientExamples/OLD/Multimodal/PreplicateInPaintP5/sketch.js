@@ -4,7 +4,7 @@ let inputBox;
 let mask;
 let maskBase64 = "";
 let canvas;
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 
 let canvas2;
 

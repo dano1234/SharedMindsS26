@@ -106,7 +106,7 @@ async function askForSound(p_prompt) {
 
     inputField.value = "Waiting on Results for: " + p_prompt;
     document.body.style.cursor = "progress";
-    const replicateProxy = "https://replicate-api-proxy.glitch.me"
+    const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
     let data = {
         //replicate / riffusion / riffusion
         "version": "8cf61ea6c56afd61d8f5b9ffd14d7c216c0a93844ce2d82ac1c9ecc9c7f24e05",
