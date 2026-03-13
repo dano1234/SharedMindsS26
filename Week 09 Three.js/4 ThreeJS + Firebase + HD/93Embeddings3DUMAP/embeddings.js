@@ -1,8 +1,10 @@
 let distanceFromCenter = 800;
 
 let camera3D, scene, renderer;
+// const openAIProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+// const url = openAIProxy;
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 let objects = [];
 let hitTestableThings = [];  //things that will be tested for intersection
 let in_front_of_you;
@@ -41,7 +43,7 @@ async function askForEmbeddings(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/";
+    const url = replicateProxy;// + "/create_n_get/";
     console.log("url", url, "options", options);
     const raw = fetch(url, options)
         .then(response => response.json())

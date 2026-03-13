@@ -7,7 +7,7 @@ let clusterSize = 6;
 
 let camera3D, scene, renderer;
 
-const replicateProxy = "https://replicate-api-proxy.glitch.me"
+const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
 var objects = [];
 
 let hitTestableThings = [];  //things that will be tested for intersection
@@ -302,10 +302,11 @@ async function askGod() {
         },
         body: JSON.stringify(data),
     };
-    const openAIProxy = "https://openai-api-proxy.glitch.me";
-
-    const url = openAIProxy + "/AskOpenAI/";  //"/askOpenAIChat/"; // 
+    const openAIProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+    const url = openAIProxy;
+    //  const url = openAIProxy + "/AskOpenAI/";  //"/askOpenAIChat/"; // 
     console.log("words url", url, "words options", options);
+
     const response = await fetch(url, options);
     console.log("words_response", response);
     const openAI_json = await response.json();
