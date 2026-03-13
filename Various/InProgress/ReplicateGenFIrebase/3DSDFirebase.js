@@ -84,7 +84,7 @@ async function askForPicture(inputField) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/"
+    const url = replicateProxy;
     console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);

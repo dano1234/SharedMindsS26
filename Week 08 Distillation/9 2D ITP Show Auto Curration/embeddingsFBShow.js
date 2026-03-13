@@ -334,7 +334,7 @@ async function askForPicture(text) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/"
+    const url = replicateProxy;
     //console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);
@@ -507,7 +507,7 @@ async function askForEmbedding(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/";
+    const url = replicateProxy;;
     let rawResponse = await fetch(url, options)
     let jsonData = await rawResponse.json();
     // return jsonData.output[0].embedding;

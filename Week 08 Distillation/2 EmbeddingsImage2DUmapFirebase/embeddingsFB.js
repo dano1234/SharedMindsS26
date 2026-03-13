@@ -243,7 +243,7 @@ async function askGod() {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/"
+    const url = replicateProxy;
     const response = await fetch(url, options);
     console.log("words_response", response);
     const got_json = await response.json();
@@ -309,7 +309,7 @@ async function askForPicture(text) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy + "/create_n_get/"
+    const url = replicateProxy;
     //console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);
@@ -471,7 +471,7 @@ async function convertURLToBase64(url) {
 //         },
 //         body: JSON.stringify(data),
 //     };
-//     const url = replicateProxy + "/create_n_get/";
+//     const url = replicateProxy;;
 //     let rawResponse = await fetch(url, options)
 //     let jsonData = await rawResponse.json();
 //     // return jsonData.output[0].embedding;
