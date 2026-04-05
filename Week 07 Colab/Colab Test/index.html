@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Gen Tester</title>
+    <!-- Modern font as per style guidelines -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Generative AI Tester</h1>
+            <p>Connect to your Colab endpoints</p>
+        </header>
+        
+        <main>
+            <div class="input-group">
+                <label for="url-input">Localtunnel URL <small style="font-weight: 400; opacity: 0.8; font-size: 0.8em;">(copy from output box of last cell in colab notebook)</small></label>
+                <!-- Default placeholder helps user understand what to paste -->
+                <input type="url" id="url-input" placeholder="https://rare-comics-march.loca.lt" required>
+            </div>
+
+            <div class="input-group">
+                <label for="prompt-input">Image Prompt</label>
+                <textarea id="prompt-input" rows="3" required>A very intelligent, kind and otherise attractive Interactive Media Arts student attempting to run a phython notebook in google colab.</textarea>
+            </div>
+
+            <button id="generate-btn">
+                <span class="btn-text">Generate Image</span>
+                <span class="loader" id="btn-loader" style="display: none;"></span>
+            </button>
+
+            <div id="error-message" class="error-message" style="display: none;"></div>
+
+            <div class="result-container" id="result-container">
+                <div class="placeholder-text" id="placeholder-text">Generated image will appear here.</div>
+                <img id="result-image" alt="Generated AI Image" style="display: none;">
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
