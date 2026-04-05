@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Interpolation</title>
+    <!-- Modern font as per style guidelines -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Generative Interpolation</h1>
+            <p>Connect to your Colab endpoints and blend two concepts</p>
+        </header>
+
+        <section class="global-settings">
+            <div class="input-group">
+                <label for="url-input">Localtunnel URL <small style="font-weight: 400; opacity: 0.8; font-size: 0.8em;">(copy from output box of last cell in colab notebook)</small></label>
+                <input type="url" id="url-input" placeholder="https://rare-comics-march.loca.lt" required>
+            </div>
+            <div id="global-error" class="error-message" style="display: none;"></div>
+        </section>
+
+        <main class="panels-container">
+            <!-- Left Panel -->
+            <div class="panel left-panel">
+                <h2>Image A</h2>
+                <div class="input-group">
+                    <textarea id="prompt-a" rows="3" required>A cute fluffy white cat sitting on a couch, highly detailed photography</textarea>
+                </div>
+                <button id="btn-generate-Left" class="generate-btn">
+                    <span class="btn-text">Generate Left</span>
+                    <span class="loader" id="loader-Left" style="display: none;"></span>
+                </button>
+                <div class="result-container" id="result-container-Left">
+                    <div class="placeholder-text" id="placeholder-Left">Left image will appear here.</div>
+                    <img id="image-Left" alt="Left Image" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Middle Panel -->
+            <div class="panel middle-panel">
+                <h2>Interpolation</h2>
+                <div class="middle-controls">
+                    <button id="btn-interpolate" class="interpolate-btn" disabled>
+                        <span class="btn-text" id="interpolate-text">Wait for Images A & B</span>
+                        <span class="loader" id="loader-Interpolate" style="display: none;"></span>
+                    </button>
+                </div>
+                <div class="result-container" id="result-container-Middle">
+                    <div class="placeholder-text" id="placeholder-Middle">Interpolated steps will appear here.</div>
+                    <img id="image-Middle" alt="Interpolated Image" style="display: none;">
+                </div>
+                <div class="slider-container" id="slider-container" style="display: none;">
+                    <input type="range" id="interpolation-slider" min="0" max="0" value="0">
+                    <div class="slider-labels">
+                        <span>Side A</span>
+                        <span id="step-label">Step 1</span>
+                        <span>Side B</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="panel right-panel">
+                <h2>Image B</h2>
+                <div class="input-group">
+                    <textarea id="prompt-b" rows="3" required>A fierce metallic robot tiger prowling in a futuristic cyberpunk city</textarea>
+                </div>
+                <button id="btn-generate-Right" class="generate-btn">
+                    <span class="btn-text">Generate Right</span>
+                    <span class="loader" id="loader-Right" style="display: none;"></span>
+                </button>
+                <div class="result-container" id="result-container-Right">
+                    <div class="placeholder-text" id="placeholder-Right">Right image will appear here.</div>
+                    <img id="image-Right" alt="Right Image" style="display: none;">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

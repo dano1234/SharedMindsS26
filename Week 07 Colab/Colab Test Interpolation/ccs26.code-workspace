@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"name": "Pink_Square_eating",
+			"path": "../../../../Downloads/Pink_Square_eating"
+		},
+		{
+			"name": "Creative Computing Test",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"liveServer.settings.port": 5502,
+		"liveServer.settings.multiRootWorkspaceName": "Creative Computing Test"
+	}
+}
