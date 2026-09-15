@@ -1,7 +1,7 @@
 
 let camera3D, scene, renderer;
 
-const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
+const replicateProxy = "https://replicate-api-proxy.glitch.me"
 let images = [];
 let in_front_of_you;
 let distanceFromCamera = -800;
@@ -97,7 +97,7 @@ async function askForPicture(inputField) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy;
+    const url = replicateProxy + "/create_n_get/"
     console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);

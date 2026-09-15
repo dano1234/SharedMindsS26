@@ -42,9 +42,10 @@ async function askPictures(prompt, location) {
         //mistral "cf18decbf51c27fed6bbdc3492312c1c903222a56e3fe9ca02d6cbe5198afc10",
         //llama  "2d19859030ff705a87c746f7e96eea03aefb71f166725aee39692f1476566d48"
         //modelURL: "https://api.replicate.com/v1/models/meta/meta-llama-3-70b-instruct/predictions",
-        model: "black-forest-labs/flux-schnell",   //stable diffusion
+        model: "google/nano-banana-2",   //Gemini Flash image generation
         input: {
             prompt: prompt,
+            aspect_ratio: "1:1",
         },
     };
     console.log("Making a Fetch Request", data);
@@ -61,8 +62,25 @@ async function askPictures(prompt, location) {
     const picture_info = await fetch(replicateProxy, options);
     //console.log("picture_response", picture_info);
     const proxy_said = await picture_info.json();
+    console.log("proxy_said", proxy_said);
 
-    if (proxy_said.output.length == 0) {
+    if (!picture_info.ok) {
+        console.log("Server error:", proxy_said.error, proxy_said.details);
+        document.body.style.cursor = "auto";
+        return;
+    }
+
+    // Handle output as either a string (nano-banana-2) or an array (flux-schnell)
+    let imageURL = null;
+    if (proxy_said.output) {
+        if (Array.isArray(proxy_said.output)) {
+            imageURL = proxy_said.output[0];
+        } else {
+            imageURL = proxy_said.output;  // single URI string
+        }
+    }
+
+    if (!imageURL) {
         console.log("Something went wrong, try it again");
     } else {
         let img = document.createElement("img");
@@ -72,7 +90,7 @@ async function askPictures(prompt, location) {
         img.style.top = location.y + 'px';
         img.style.width = '256px';
         img.style.height = '256px';
-        img.src = proxy_said.output[0];
+        img.src = imageURL;
 
     }
     document.body.style.cursor = "auto";

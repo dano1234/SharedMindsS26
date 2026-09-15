@@ -2,7 +2,7 @@ import { getRecordedData } from "./testFetchMLInputs.js";
 import { GoogleGenerativeAI } from 'https://esm.run/@google/generative-ai'
 
 const openAIProxy = "https://openai-api-proxy.glitch.me";
-const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get";
+const replicateProxy = "https://replicate-api-proxy.glitch.me";
 
 let feedback = document.createElement("p");
 feedback.style.position = "absolute";

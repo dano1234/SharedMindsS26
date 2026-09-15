@@ -1,4 +1,4 @@
-const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
+const replicateProxy = "https://replicate-api-proxy.glitch.me"
 let feedback;
 
 function setup() {
@@ -37,7 +37,7 @@ async function askForWords(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy;
+    const url = replicateProxy + "/create_n_get/"
     console.log("words url", url, "words options", options);
     const words_response = await fetch(url, options);
     //turn it into json

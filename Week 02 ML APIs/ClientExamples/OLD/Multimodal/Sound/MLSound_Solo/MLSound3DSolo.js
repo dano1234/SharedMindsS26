@@ -44,7 +44,7 @@ function draw() {
 async function askForSound(p_prompt) {
     inputField.value("Getting Results for: " + p_prompt);
     document.body.style.cursor = "progress";
-    const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
+    const replicateProxy = "https://replicate-api-proxy.glitch.me"
 
     //const imageDiv = select("#resulting_image");
     //imageDiv.html("Waiting for reply from Replicate's API...");
@@ -63,7 +63,7 @@ async function askForSound(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy;
+    const url = replicateProxy + "/create_n_get/"
     console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);

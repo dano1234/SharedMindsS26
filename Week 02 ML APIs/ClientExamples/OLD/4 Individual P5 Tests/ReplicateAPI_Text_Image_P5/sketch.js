@@ -1,4 +1,4 @@
-const replicateProxy = "https://itp-ima-replicate-proxy.web.app/api/create_n_get"
+const replicateProxy = "https://replicate-api-proxy.glitch.me"
 
 function setup() {
     createCanvas(512, 512);
@@ -47,7 +47,7 @@ async function askForPicture(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy;
+    const url = replicateProxy + "/create_n_get/"
     console.log("url", url, "options", options);
     const picture_info = await fetch(url, options);
     //console.log("picture_response", picture_info);
@@ -84,7 +84,7 @@ async function askForWords(p_prompt) {
         },
         body: JSON.stringify(data),
     };
-    const url = replicateProxy;
+    const url = replicateProxy + "/create_n_get/"
     console.log("words url", url, "words options", options);
     const words_response = await fetch(url, options);
     console.log("words_response", words_response);
