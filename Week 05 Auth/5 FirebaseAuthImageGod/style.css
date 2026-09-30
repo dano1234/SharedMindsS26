@@ -1,0 +1,47 @@
+.authButton {
+    background-color: #c9328a;
+    /* Green */
+    border: none;
+    color: rgb(225, 212, 212);
+    padding: 5px 5px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 2px;
+}
+
+.authButton:hover {
+    background-color: #45a049;
+}
+
+.authInput {
+    padding: 5px 10px;
+    font-size: 12px;
+    width: 100%;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.promptTextArea {
+    position: absolute;
+    width: 256px;
+    height: 60px;
+    font-size: 12px;
+    font-family: Arial, sans-serif;
+    padding: 6px;
+    box-sizing: border-box;
+    border: 1px solid #bbb;
+    border-radius: 0 0 4px 4px;
+    background-color: rgba(255, 255, 255, 0.92);
+    color: #222;
+    resize: none;
+    z-index: 50;
+    line-height: 1.35;
+    outline: none;
+}
