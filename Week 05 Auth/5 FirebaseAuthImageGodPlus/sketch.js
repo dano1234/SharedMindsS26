@@ -9,6 +9,8 @@ let db, auth, app;
 let googleAuthProvider;
 let existingSubscribedFolder = null;
 
+let selectedAIUserKey = null; // Currently highlighted AI fake user from pulldown
+
 const exampleName = "SharedMindsFirebaseAuthImageGodPlus";
 
 // UI references
@@ -437,13 +439,55 @@ function hideStatus(delay = 3500) {
 }
 
 // -------------------------------------------------------------
+// USER IDENTITY & PERMISSION SYSTEM
+// Supports Firebase Auth for the logged-in user
+// -------------------------------------------------------------
+function getActiveUser() {
+    if (auth && auth.currentUser) {
+        const u = auth.currentUser;
+        const realName = u.displayName || (u.email ? u.email.split('@')[0] : "Logged In User");
+        return {
+            uid: u.uid,
+            id: u.uid,
+            name: realName,
+            email: u.email,
+            photoURL: u.photoURL || getFallbackAvatarUrl(realName),
+            isImpersonated: false
+        };
+    }
+    return null;
+}
+
+// Determines if a given card belongs to the currently active logged-in user
+function isCardOwnedByActiveUser(cardData) {
+    const active = getActiveUser();
+    if (!active || !cardData) return false;
+
+    // 1. By UID / ID match
+    if (cardData.creatorUid && (cardData.creatorUid === active.uid || cardData.creatorUid === active.id)) {
+        return true;
+    }
+    // 2. By Name match (case-insensitive)
+    const cardName = (cardData.name || cardData.userName || "").trim().toLowerCase();
+    const activeName = (active.name || "").trim().toLowerCase();
+    if (cardName && activeName && cardName === activeName) {
+        return true;
+    }
+    // 3. By Email match
+    if (cardData.email && active.email && cardData.email.trim().toLowerCase() === active.email.trim().toLowerCase()) {
+        return true;
+    }
+    return false;
+}
+
+// -------------------------------------------------------------
 // DOM PERSONA CARD CREATION & HOVER HANDLING
 // 1. Profile Picture and Name displayed on screen
 // 2. Additional Info Modal:
 //    - Image from prompt at the TOP
-//    - Image prompt editable for logged-in user + Regenerate button
-//    - Background
-//    - Mission in life
+//    - Image prompt editable only for owner + Regenerate button
+//    - Background (editable only for owner)
+//    - Mission in life (editable only for owner)
 // -------------------------------------------------------------
 function createOrUpdatePersonaCard(key, data) {
     let card = activeCards[key];
@@ -456,7 +500,6 @@ function createOrUpdatePersonaCard(key, data) {
     const mission = data.mission || "";
     const prompt = data.prompt || "";
     const imageURL = data.imageURL || "";
-    const isLoggedIn = !!(auth && auth.currentUser);
 
     if (!card) {
         card = document.createElement('div');
@@ -469,7 +512,10 @@ function createOrUpdatePersonaCard(key, data) {
             <div class="persona-avatar-wrapper" title="Click to pin details, hover to view">
                 <img class="persona-avatar-img" src="${profilePic}" alt="${displayName}" loading="lazy" />
             </div>
-            <div class="persona-name-badge">${displayName}</div>
+            <div class="persona-name-badge">
+                <span class="persona-name-text">${displayName}</span>
+                <span class="you-indicator" style="display:none;">YOU</span>
+            </div>
 
             <!-- Additional Info Modal: Revealed on mouseover / click -->
             <div class="persona-details-popover">
@@ -477,10 +523,13 @@ function createOrUpdatePersonaCard(key, data) {
                 <div class="popover-header">
                     <img class="popover-mini-avatar" src="${profilePic}" alt="${displayName}" />
                     <div class="popover-title-group">
-                        <div class="popover-name">${displayName}</div>
+                        <div class="popover-name-row" style="display:flex;align-items:center;">
+                            <span class="popover-name">${displayName}</span>
+                            <span class="popover-you-tag" style="display:none;">Your Profile</span>
+                        </div>
                         <div class="popover-role-tag ${isAI ? 'ai' : 'human'}">${isAI ? 'AI Persona' : 'Real User'}</div>
                     </div>
-                    <button class="popover-delete-btn" title="Delete Persona" data-delete-key="${key}">✕</button>
+                    <button class="popover-delete-btn" title="Delete Card" data-delete-key="${key}" style="display:none;">✕</button>
                 </div>
 
                 <!-- 1. IMAGE FROM PROMPT (AT THE TOP) -->
@@ -500,37 +549,40 @@ function createOrUpdatePersonaCard(key, data) {
                     </div>
                 </div>
 
-                <!-- 2. EDITABLE IMAGE PROMPT (FOR LOGGED IN PERSON) -->
+                <!-- 2. EDITABLE IMAGE PROMPT (ONLY FOR LOGGED IN / IMPERSONATED OWNER) -->
                 <div class="popover-section popover-prompt-section">
                     <div class="popover-label">
-                        ✨ Image Prompt ${isLoggedIn ? '<span style="color:#38bdf8;font-size:10px;font-weight:normal;text-transform:none;">(Editable)</span>' : ''}
+                        <span>✨ Image Prompt</span>
+                        <span class="owner-edit-badge" style="display:none;">(Editable by You)</span>
                     </div>
-                    <textarea class="popover-prompt-input" rows="3" placeholder="Enter image prompt..." ${isLoggedIn ? '' : 'readonly'}>${prompt}</textarea>
+                    <textarea class="popover-prompt-input is-readonly" rows="3" placeholder="Enter image prompt..." readonly>${prompt}</textarea>
                     
-                    <div class="popover-prompt-actions" style="${isLoggedIn ? 'display:flex;' : 'display:none;'}">
+                    <div class="popover-prompt-actions" style="display:none;">
                         <button class="popover-regen-btn" type="button">🎨 Regenerate Image</button>
                     </div>
-                    <div class="popover-auth-hint" style="${isLoggedIn ? 'display:none;' : 'display:block;'}">
-                        🔒 Log in above to edit prompt & regenerate image
+                    <div class="popover-auth-hint" style="display:block;">
+                        🔒 View only
                     </div>
                 </div>
 
                 <!-- 3. BACKGROUND -->
-                <div class="popover-section">
-                    <div class="popover-label">📜 Background</div>
-                    ${(!isAI && isLoggedIn) ? 
-                        `<textarea class="popover-field-input popover-background-input" rows="2" placeholder="Add your background story...">${background}</textarea>` :
-                        `<div class="popover-text ${!background ? 'is-empty' : ''}">${background || '(No background provided yet)'}</div>`
-                    }
+                <div class="popover-section popover-bg-section">
+                    <div class="popover-label">
+                        <span>📜 Background</span>
+                        <span class="owner-edit-badge" style="display:none;">(Editable by You)</span>
+                    </div>
+                    <textarea class="popover-field-input popover-background-input" rows="2" placeholder="Add your background story..." style="display:none;">${background}</textarea>
+                    <div class="popover-text popover-background-display ${!background ? 'is-empty' : ''}">${background || '(No background provided yet)'}</div>
                 </div>
 
                 <!-- 4. MISSION IN LIFE -->
-                <div class="popover-section">
-                    <div class="popover-label">🎯 Mission in Life</div>
-                    ${(!isAI && isLoggedIn) ? 
-                        `<textarea class="popover-field-input popover-mission-input" rows="2" placeholder="Add your mission in life...">${mission}</textarea>` :
-                        `<div class="popover-mission ${!mission ? 'is-empty' : ''}">${mission ? `"${mission}"` : '(No mission entered yet)'}</div>`
-                    }
+                <div class="popover-section popover-mission-section">
+                    <div class="popover-label">
+                        <span>🎯 Mission in Life</span>
+                        <span class="owner-edit-badge" style="display:none;">(Editable by You)</span>
+                    </div>
+                    <textarea class="popover-field-input popover-mission-input" rows="2" placeholder="Add your mission in life..." style="display:none;">${mission}</textarea>
+                    <div class="popover-mission popover-mission-display ${!mission ? 'is-empty' : ''}">${mission ? `"${mission}"` : '(No mission entered yet)'}</div>
                 </div>
             </div>
         `;
@@ -547,6 +599,9 @@ function createOrUpdatePersonaCard(key, data) {
 
     card.style.left = position.x + 'px';
     card.style.top = position.y + 'px';
+
+    // Apply permissions immediately for this card
+    updateCardPermissions(card, key, data);
 }
 
 function updateCardContent(card, data) {
@@ -556,8 +611,8 @@ function updateCardContent(card, data) {
     const profilePic = data.profilePictureURL || data.imageURL || getFallbackAvatarUrl(rawName);
     const imageURL = data.imageURL || "";
 
-    const nameBadge = card.querySelector('.persona-name-badge');
-    if (nameBadge && nameBadge.textContent !== displayName) nameBadge.textContent = displayName;
+    const nameText = card.querySelector('.persona-name-text');
+    if (nameText && nameText.textContent !== displayName) nameText.textContent = displayName;
 
     const popoverName = card.querySelector('.popover-name');
     if (popoverName && popoverName.textContent !== displayName) popoverName.textContent = displayName;
@@ -570,6 +625,9 @@ function updateCardContent(card, data) {
 
     const avatarImg = card.querySelector('.persona-avatar-img');
     if (avatarImg && avatarImg.src !== profilePic) avatarImg.src = profilePic;
+
+    const miniAvatar = card.querySelector('.popover-mini-avatar');
+    if (miniAvatar && miniAvatar.src !== profilePic) miniAvatar.src = profilePic;
 
     const popoverPromptImg = card.querySelector('.popover-prompt-image');
     const placeholder = card.querySelector('.popover-prompt-image-placeholder');
@@ -585,8 +643,160 @@ function updateCardContent(card, data) {
     }
 
     const promptInput = card.querySelector('.popover-prompt-input');
-    if (promptInput && document.activeElement !== promptInput && data.prompt && promptInput.value !== data.prompt) {
+    if (promptInput && document.activeElement !== promptInput && data.prompt !== undefined && promptInput.value !== data.prompt) {
         promptInput.value = data.prompt;
+    }
+
+    const bgInput = card.querySelector('.popover-background-input');
+    const bgDisplay = card.querySelector('.popover-background-display');
+    if (bgInput && document.activeElement !== bgInput && data.background !== undefined && bgInput.value !== data.background) {
+        bgInput.value = data.background;
+    }
+    if (bgDisplay) {
+        bgDisplay.textContent = data.background || "(No background provided yet)";
+        if (!data.background) bgDisplay.classList.add('is-empty');
+        else bgDisplay.classList.remove('is-empty');
+    }
+
+    const missionInput = card.querySelector('.popover-mission-input');
+    const missionDisplay = card.querySelector('.popover-mission-display');
+    if (missionInput && document.activeElement !== missionInput && data.mission !== undefined && missionInput.value !== data.mission) {
+        missionInput.value = data.mission;
+    }
+    if (missionDisplay) {
+        missionDisplay.textContent = data.mission ? `"${data.mission}"` : "(No mission entered yet)";
+        if (!data.mission) missionDisplay.classList.add('is-empty');
+        else missionDisplay.classList.remove('is-empty');
+    }
+}
+
+// Updates UI controls & readonly states on a card depending on whether the active user owns it
+function updateCardPermissions(card, key, data) {
+    if (!card || !data) return;
+    const isOwned = isCardOwnedByActiveUser(data);
+    const active = getActiveUser();
+    const ownerName = data.name || data.userName || "this persona";
+
+    // Card movement & visual styling
+    if (isOwned) {
+        card.classList.add('is-own-card');
+        card.classList.add('can-move');
+        card.title = "Your Card — Drag to move, hover or click to edit";
+    } else {
+        card.classList.remove('is-own-card');
+        card.classList.remove('can-move');
+        card.title = `${ownerName} — Hover or click to view details`;
+    }
+
+    // YOU indicator on canvas name badge
+    const youIndicator = card.querySelector('.you-indicator');
+    if (youIndicator) {
+        youIndicator.style.display = isOwned ? 'inline-block' : 'none';
+    }
+
+    // Your Profile tag in modal header
+    const youTag = card.querySelector('.popover-you-tag');
+    if (youTag) {
+        youTag.style.display = isOwned ? 'inline-block' : 'none';
+    }
+
+    // Delete button: only owner can delete their card
+    const deleteBtn = card.querySelector('.popover-delete-btn');
+    if (deleteBtn) {
+        deleteBtn.style.display = isOwned ? 'flex' : 'none';
+    }
+
+    // Prompt input & regenerate button
+    const promptInput = card.querySelector('.popover-prompt-input');
+    const regenActions = card.querySelector('.popover-prompt-actions');
+    const authHint = card.querySelector('.popover-auth-hint');
+    const promptBadge = card.querySelector('.popover-prompt-section .owner-edit-badge');
+
+    if (promptInput) {
+        if (isOwned) {
+            promptInput.removeAttribute('readonly');
+            promptInput.classList.remove('is-readonly');
+        } else {
+            promptInput.setAttribute('readonly', 'true');
+            promptInput.classList.add('is-readonly');
+        }
+    }
+    if (regenActions) {
+        regenActions.style.display = isOwned ? 'flex' : 'none';
+    }
+    if (promptBadge) {
+        promptBadge.style.display = isOwned ? 'inline' : 'none';
+    }
+    if (authHint) {
+        if (isOwned) {
+            authHint.style.display = 'none';
+        } else {
+            authHint.style.display = 'block';
+            if (!active) {
+                authHint.innerHTML = `🔒 Log in or impersonate <strong>${ownerName}</strong> to edit.`;
+            } else {
+                authHint.innerHTML = `🔒 View only — belongs to <strong>${ownerName}</strong>.`;
+            }
+        }
+    }
+
+    // Background section
+    const bgInput = card.querySelector('.popover-background-input');
+    const bgDisplay = card.querySelector('.popover-background-display');
+    const bgBadge = card.querySelector('.popover-bg-section .owner-edit-badge');
+    if (bgBadge) bgBadge.style.display = isOwned ? 'inline' : 'none';
+
+    if (isOwned) {
+        if (bgInput) {
+            bgInput.style.display = 'block';
+            if (document.activeElement !== bgInput) {
+                bgInput.value = data.background || "";
+            }
+        }
+        if (bgDisplay) bgDisplay.style.display = 'none';
+    } else {
+        if (bgInput) bgInput.style.display = 'none';
+        if (bgDisplay) {
+            bgDisplay.style.display = 'block';
+            bgDisplay.textContent = data.background || "(No background provided yet)";
+            if (!data.background) bgDisplay.classList.add('is-empty');
+            else bgDisplay.classList.remove('is-empty');
+        }
+    }
+
+    // Mission section
+    const missionInput = card.querySelector('.popover-mission-input');
+    const missionDisplay = card.querySelector('.popover-mission-display');
+    const missionBadge = card.querySelector('.popover-mission-section .owner-edit-badge');
+    if (missionBadge) missionBadge.style.display = isOwned ? 'inline' : 'none';
+
+    if (isOwned) {
+        if (missionInput) {
+            missionInput.style.display = 'block';
+            if (document.activeElement !== missionInput) {
+                missionInput.value = data.mission || "";
+            }
+        }
+        if (missionDisplay) missionDisplay.style.display = 'none';
+    } else {
+        if (missionInput) missionInput.style.display = 'none';
+        if (missionDisplay) {
+            missionDisplay.style.display = 'block';
+            missionDisplay.textContent = data.mission ? `"${data.mission}"` : "(No mission entered yet)";
+            if (!data.mission) missionDisplay.classList.add('is-empty');
+            else missionDisplay.classList.remove('is-empty');
+        }
+    }
+}
+
+// Refreshes permissions and controls across every card on the canvas
+function refreshAllCardsPermissions() {
+    for (const key in activeCards) {
+        const card = activeCards[key];
+        const data = myObjectsByFirebaseKey[key];
+        if (card && data) {
+            updateCardPermissions(card, key, data);
+        }
     }
 }
 
@@ -607,15 +817,11 @@ function setupCardEvents(card, key, data) {
     card.addEventListener('mouseenter', () => {
         if (!popover) return;
         const rect = card.getBoundingClientRect();
-
-        // Flip to left if too close to right edge
         if (rect.left + 120 + 340 > window.innerWidth) {
             popover.classList.add('popover-flip-left');
         } else {
             popover.classList.remove('popover-flip-left');
         }
-
-        // Flip upward if too close to bottom edge
         if (rect.top + 520 > window.innerHeight) {
             popover.classList.add('popover-flip-up');
         } else {
@@ -633,22 +839,28 @@ function setupCardEvents(card, key, data) {
     popover.addEventListener('mousedown', (e) => e.stopPropagation());
     popover.addEventListener('click', (e) => e.stopPropagation());
 
-    // 4. Delete button handler
+    // 4. Delete button handler (only for owned card)
     if (deleteBtn) {
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const name = data.name || data.userName || "Persona";
-            if (confirm(`Remove "${name}" from canvas?`)) {
+            if (!isCardOwnedByActiveUser(data)) {
+                showStatus("🔒 You can only delete your own card.", false);
+                hideStatus(2500);
+                return;
+            }
+            const name = data.name || data.userName || "Card";
+            if (confirm(`Remove your card "${name}" from canvas?`)) {
                 deleteFromFirebase(exampleName, key);
             }
         });
     }
 
-    // 5. Background & Mission live saving for real users
+    // 5. Background & Mission live saving (only for owned card)
     if (bgInput) {
         bgInput.addEventListener('mousedown', (e) => e.stopPropagation());
         bgInput.addEventListener('click', (e) => e.stopPropagation());
         bgInput.addEventListener('change', () => {
+            if (!isCardOwnedByActiveUser(data)) return;
             const val = bgInput.value.trim();
             data.background = val;
             updateJSONFieldInFirebase(exampleName + "/" + key + "/", { background: val });
@@ -659,19 +871,22 @@ function setupCardEvents(card, key, data) {
         missionInput.addEventListener('mousedown', (e) => e.stopPropagation());
         missionInput.addEventListener('click', (e) => e.stopPropagation());
         missionInput.addEventListener('change', () => {
+            if (!isCardOwnedByActiveUser(data)) return;
             const val = missionInput.value.trim();
             data.mission = val;
             updateJSONFieldInFirebase(exampleName + "/" + key + "/", { mission: val });
         });
     }
 
-    // 6. Prompt Textarea & Regenerate Button Handlers
+    // 6. Prompt Textarea & Regenerate Button Handlers (only for owned card)
     if (promptInput) {
         promptInput.addEventListener('keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                triggerRegenerate();
+                if (isCardOwnedByActiveUser(data)) {
+                    triggerRegenerate();
+                }
             }
         });
     }
@@ -679,13 +894,21 @@ function setupCardEvents(card, key, data) {
     if (regenBtn) {
         regenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            triggerRegenerate();
+            if (isCardOwnedByActiveUser(data)) {
+                triggerRegenerate();
+            }
         });
     }
 
     async function triggerRegenerate() {
-        if (!auth.currentUser) {
-            showStatus("Please log in above to edit and regenerate image", false);
+        if (!isCardOwnedByActiveUser(data)) {
+            const active = getActiveUser();
+            const ownerName = data.name || data.userName || "this persona";
+            if (!active) {
+                showStatus(`🔒 Please log in or impersonate ${ownerName} to edit this card.`, false);
+            } else {
+                showStatus(`🔒 You can only edit your own card! This card belongs to ${ownerName}.`, false);
+            }
             hideStatus(3000);
             return;
         }
@@ -739,11 +962,11 @@ function setupCardEvents(card, key, data) {
         }
     }
 
-    // 7. Card Dragging (syncs position to Firebase)
+    // 7. Card Dragging (ONLY FOR LOGGED IN / IMPERSONATED USER'S OWN CARD)
     attachCardDragHandlers(card, key, data);
 }
 
-// Drag & drop cards on canvas, sync position to Firebase
+// Drag & drop cards on canvas - STRICTLY restricted to the card owner!
 function attachCardDragHandlers(card, key, data) {
     let startMouseX = 0;
     let startMouseY = 0;
@@ -755,6 +978,20 @@ function attachCardDragHandlers(card, key, data) {
         if (e.target.closest('.persona-details-popover')) {
             return;
         }
+
+        // STRICT PERMISSION CHECK: Only the logged in or impersonated user can move their own location!
+        if (!isCardOwnedByActiveUser(data)) {
+            const active = getActiveUser();
+            const ownerName = data.name || data.userName || "this persona";
+            if (!active) {
+                showStatus(`🔒 Please log in or choose a user to impersonate from the Auth menu to move your card.`, false);
+            } else {
+                showStatus(`🔒 You are currently "${active.name}". You can only move your own card! This card belongs to ${ownerName}.`, false);
+            }
+            hideStatus(2800);
+            return;
+        }
+
         e.stopPropagation();
         isDraggingThis = true;
         card.classList.add('is-dragging');
@@ -795,31 +1032,6 @@ function attachCardDragHandlers(card, key, data) {
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
     });
-}
-
-// Update all modal prompt inputs when user logs in or out
-function updateAllCardsAuthMode(isLoggedIn) {
-    for (let key in activeCards) {
-        const card = activeCards[key];
-        if (!card) continue;
-        const promptInput = card.querySelector('.popover-prompt-input');
-        const actionsDiv = card.querySelector('.popover-prompt-actions');
-        const authHint = card.querySelector('.popover-auth-hint');
-        const promptLabel = card.querySelector('.popover-prompt-section .popover-label');
-
-        if (promptInput) {
-            if (isLoggedIn) {
-                promptInput.removeAttribute('readonly');
-            } else {
-                promptInput.setAttribute('readonly', 'true');
-            }
-        }
-        if (actionsDiv) actionsDiv.style.display = isLoggedIn ? 'flex' : 'none';
-        if (authHint) authHint.style.display = isLoggedIn ? 'none' : 'block';
-        if (promptLabel) {
-            promptLabel.innerHTML = `✨ Image Prompt ${isLoggedIn ? '<span style="color:#38bdf8;font-size:10px;font-weight:normal;text-transform:none;">(Editable)</span>' : ''}`;
-        }
-    }
 }
 
 // -------------------------------------------------------------
@@ -886,18 +1098,49 @@ function initInterface() {
         hideStatus(3000);
     });
 
-    // 5. Auth Box
+    // 5. Right Sidebar (Flex column: Auth UI on top, AI Fake Users pulldown directly under it)
+    const rightSidebar = document.createElement("div");
+    rightSidebar.setAttribute("id", "rightSidebar");
+    document.body.appendChild(rightSidebar);
+
+    // 5a. Auth Box
     authDiv = document.createElement("div");
     authDiv.setAttribute("id", "authDiv");
-    document.body.appendChild(authDiv);
+    rightSidebar.appendChild(authDiv);
 
     authDiv.addEventListener('mousedown', (e) => e.stopPropagation());
     authDiv.addEventListener('dblclick', (e) => e.stopPropagation());
 
+    renderAuthInterface();
+
+    // 5b. AI Fake Users Pulldown Panel (Directly under Auth UI)
+    const aiUsersPanel = document.createElement("div");
+    aiUsersPanel.setAttribute("id", "aiUsersPanel");
+    aiUsersPanel.innerHTML = `
+        <div class="aiUsersHeader">
+            <span>🤖 AI Fake Users</span>
+            <span id="aiUsersCountBadge" class="aiUsersBadge">0</span>
+        </div>
+        <select id="aiFakeUsersSelect">
+            <option value="">-- Select AI Fake User --</option>
+        </select>
+        <div class="aiUsersHint">Select an AI user to locate their card & view details.</div>
+    `;
+    rightSidebar.appendChild(aiUsersPanel);
+
+    aiUsersPanel.addEventListener('mousedown', (e) => e.stopPropagation());
+    aiUsersPanel.addEventListener('dblclick', (e) => e.stopPropagation());
+
+    const aiSelect = aiUsersPanel.querySelector("#aiFakeUsersSelect");
+    aiSelect.addEventListener("change", (e) => {
+        e.stopPropagation();
+        handleAIUserSelection(aiSelect.value);
+    });
+
     // 6. Bottom Navigation Hint
     const bottomHint = document.createElement('div');
     bottomHint.setAttribute('id', 'bottomHint');
-    bottomHint.textContent = '💡 Click GOD to dream up a persona • Hover or click avatar for details • Log in to edit prompts & regenerate • Drag to arrange';
+    bottomHint.textContent = '💡 Click GOD for AI personas • Select an AI Fake User from the pulldown below auth • Hover or click avatar for details';
     document.body.appendChild(bottomHint);
 
     // 7. Clicking outside unpins any pinned modal
@@ -935,29 +1178,35 @@ function initFirebase() {
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        console.log("user is signed in", user);
-        showLogOutButton(user);
-        ensureUserCardExists(user);
+        console.log("Firebase user is signed in:", user);
     } else {
-        console.log("user is signed out");
-        showLoginButtons();
+        console.log("Firebase user is signed out");
     }
-    // Update all persona modals so prompt input becomes editable/readonly
-    updateAllCardsAuthMode(!!user);
+    renderAuthInterface();
+    refreshAllCardsPermissions();
 });
 
-// When a new person logs on, give them all blanks except their name from login information
+// When a new person logs on or is impersonated, ensure a card exists for them
 function ensureUserCardExists(user) {
-    const realName = user.displayName || (user.email ? user.email.split('@')[0] : "User");
+    if (!user) return;
+    const realName = user.name || user.displayName || (user.email ? user.email.split('@')[0] : "User");
+    const targetUid = user.uid || user.id;
 
     // Check if card for this user already exists in Firebase
     const existingKey = Object.keys(myObjectsByFirebaseKey).find(key => {
         const item = myObjectsByFirebaseKey[key];
-        return item && (item.creatorUid === user.uid || (!item.isAI && item.name === realName));
+        if (!item) return false;
+        if (targetUid && item.creatorUid === targetUid) return true;
+        const itemName = (item.name || item.userName || "").trim().toLowerCase();
+        return itemName === realName.trim().toLowerCase();
     });
 
     if (existingKey) {
         console.log("User card already exists on canvas:", existingKey);
+        const cardEl = activeCards[existingKey];
+        if (cardEl) {
+            updateCardPermissions(cardEl, existingKey, myObjectsByFirebaseKey[existingKey]);
+        }
         return;
     }
 
@@ -967,7 +1216,7 @@ function ensureUserCardExists(user) {
     const userCardData = {
         type: "user",
         isAI: false, // REAL USER - no (AI) attached!
-        creatorUid: user.uid,
+        creatorUid: targetUid,
         name: realName,
         userName: realName,
         profilePictureURL: defaultAvatar,
@@ -979,212 +1228,235 @@ function ensureUserCardExists(user) {
         createdAt: Date.now()
     };
 
-    console.log("Auto-creating blank card on canvas for new logged-in user:", realName);
+    console.log("Auto-creating blank card on canvas for user:", realName);
     addNewThingToFirebase(exampleName + "/", userCardData);
-    showStatus(`Welcome, ${realName}! Your profile card is on the canvas.`, false);
+    showStatus(`Welcome, ${realName}! Your profile card was placed on the canvas.`, false);
     hideStatus(3500);
 }
 
-function showLogOutButton(user) {
+// -------------------------------------------------------------
+// AUTHENTICATION INTERFACE
+// -------------------------------------------------------------
+function renderAuthInterface() {
+    if (!authDiv) return;
     authDiv.innerHTML = "";
-    let userNameDiv = document.createElement("div");
-    userNameDiv.style.marginBottom = "8px";
-    userNameDiv.style.fontWeight = "600";
 
-    if (user.photoURL) {
-        let userPic = document.createElement("img");
-        userPic.src = user.photoURL;
-        userPic.style.width = "40px";
-        userPic.style.height = "40px";
-        userPic.style.borderRadius = "50%";
-        userPic.style.display = "block";
-        userPic.style.marginBottom = "6px";
-        authDiv.appendChild(userPic);
-    }
-    const realName = user.displayName || user.email || "Logged In";
-    userNameDiv.innerHTML = `${realName} <span style="color:#34d399;font-size:11px;font-weight:normal;">(Real User)</span>`;
-    authDiv.appendChild(userNameDiv);
+    // 1. If logged in via Firebase Auth (Google or Email)
+    if (auth && auth.currentUser) {
+        const u = auth.currentUser;
+        const realName = u.displayName || u.email || "Logged In User";
+        const banner = document.createElement("div");
+        banner.className = "authActiveUserBanner loggedIn";
+        const photo = u.photoURL || getFallbackAvatarUrl(realName);
+        banner.innerHTML = `
+            <img src="${photo}" class="authAvatar" alt="${realName}" />
+            <div class="authUserInfo">
+                <div class="authUserName">${realName}</div>
+                <div class="authUserRole">✓ Logged In (Real User)</div>
+            </div>
+        `;
+        authDiv.appendChild(banner);
 
-    let logOutButton = document.createElement("button");
-    logOutButton.innerHTML = "Log Out";
-    logOutButton.setAttribute("id", "logOut");
-    logOutButton.setAttribute("class", "authButton");
-    authDiv.appendChild(logOutButton);
-
-    logOutButton.addEventListener("click", function () {
-        signOut(auth).then(() => {
-            console.log("signed out");
-        }).catch((error) => {
-            console.log("error signing out", error);
+        const logOutButton = document.createElement("button");
+        logOutButton.innerHTML = "Log Out";
+        logOutButton.setAttribute("id", "logOut");
+        logOutButton.setAttribute("class", "authButton");
+        logOutButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            signOut(auth).then(() => {
+                console.log("signed out");
+            });
         });
-    });
+        authDiv.appendChild(logOutButton);
+    }
+    // 2. Else: Guest / unauthenticated - Show Firebase login options
+    else {
+        // Google Login Button
+        let signUpWithGoogleButton = document.createElement("button");
+        signUpWithGoogleButton.innerHTML = "Google Login";
+        signUpWithGoogleButton.setAttribute("id", "signInWithGoogle");
+        signUpWithGoogleButton.setAttribute("class", "authButton");
+        authDiv.appendChild(signUpWithGoogleButton);
+
+        // Email Sign In / Sign Up
+        let emailDiv = document.createElement("div");
+        emailDiv.style.marginTop = "8px";
+        emailDiv.style.fontWeight = "600";
+        emailDiv.innerHTML = "Email Sign In";
+        authDiv.appendChild(emailDiv);
+
+        let emailInput = document.createElement("input");
+        emailInput.setAttribute("id", "email");
+        emailInput.setAttribute("class", "authInput");
+        emailInput.setAttribute("type", "text");
+        emailInput.setAttribute("placeholder", "email@domain.com");
+        authDiv.appendChild(emailInput);
+
+        let passwordInput = document.createElement("input");
+        passwordInput.setAttribute("id", "password");
+        passwordInput.setAttribute("type", "password");
+        passwordInput.setAttribute("class", "authInput");
+        passwordInput.setAttribute("placeholder", "password");
+        passwordInput.setAttribute("autocomplete", "on");
+        authDiv.appendChild(passwordInput);
+
+        let signUpWithEmailButton = document.createElement("button");
+        signUpWithEmailButton.innerHTML = "Sign Up";
+        signUpWithEmailButton.setAttribute("id", "signUpWithEmail");
+        signUpWithEmailButton.setAttribute("class", "authButton");
+        authDiv.appendChild(signUpWithEmailButton);
+
+        let signInWithEmailButton = document.createElement("button");
+        signInWithEmailButton.innerHTML = "Sign In";
+        signInWithEmailButton.setAttribute("id", "signInWithEmail");
+        signInWithEmailButton.setAttribute("class", "authButton");
+        authDiv.appendChild(signInWithEmailButton);
+
+        signUpWithGoogleButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            signInWithPopup(auth, googleAuthProvider)
+                .catch((err) => console.error("Google sign in error", err));
+        });
+
+        signInWithEmailButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const em = document.getElementById("email").value;
+            const pw = document.getElementById("password").value;
+            signInWithEmailAndPassword(auth, em, pw)
+                .catch((err) => alert(err.message));
+        });
+
+        signUpWithEmailButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const em = document.getElementById("email").value;
+            const pw = document.getElementById("password").value;
+            createUserWithEmailAndPassword(auth, em, pw)
+                .catch((err) => alert(err.message));
+        });
+    }
 }
 
-// Predefined real user profiles for Quick "Login As"
-const predefinedUsers = [
-    { name: "Alice Walker", email: "alice@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=alice" },
-    { name: "Bob Chen", email: "bob@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=bob" },
-    { name: "Charlie Davis", email: "charlie@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=charlie" },
-    { name: "Dana Scully", email: "dana@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=dana" },
-    { name: "Elena Rostova", email: "elena@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=elena" },
-    { name: "Marcus Vance", email: "marcus@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=marcus" },
-    { name: "Guest Explorer", email: "guest@sharedminds.com", password: "password123", photoURL: "https://i.pravatar.cc/150?u=guest" }
-];
+// -------------------------------------------------------------
+// AI FAKE USERS PULLDOWN MENU
+// Populates and updates the dedicated dropdown under the auth UI
+// -------------------------------------------------------------
+function updateAIFakeUsersDropdown() {
+    const aiSelect = document.getElementById("aiFakeUsersSelect");
+    const countBadge = document.getElementById("aiUsersCountBadge");
+    if (!aiSelect) return;
 
-async function performLoginAs(userData) {
-    showStatus(`Logging in as ${userData.name}...`);
-    try {
-        let userCred;
-        try {
-            userCred = await signInWithEmailAndPassword(auth, userData.email, userData.password);
-        } catch (signInErr) {
-            // If user doesn't exist yet in Firebase, auto-create account
-            if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential' || signInErr.code === 'auth/invalid-login-credentials') {
-                userCred = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
-            } else {
-                throw signInErr;
+    const currentSelected = selectedAIUserKey || aiSelect.value;
+    aiSelect.innerHTML = `<option value="">-- Select AI Fake User --</option>`;
+
+    let aiEntries = [];
+
+    for (let key in myObjectsByFirebaseKey) {
+        const item = myObjectsByFirebaseKey[key];
+        if (!item) continue;
+
+        // An AI Fake User is any persona: isAI !== false, or type === 'persona', or has (AI) in name
+        const isAI = item.isAI !== false && item.type !== "user";
+        if (isAI) {
+            const rawName = item.name || item.userName || "Unnamed AI Persona";
+            const displayName = rawName.includes("(AI)") ? rawName : `${rawName} (AI)`;
+            aiEntries.push({ key, name: displayName });
+        }
+    }
+
+    // Sort alphabetically by name
+    aiEntries.sort((a, b) => a.name.localeCompare(b.name));
+
+    aiEntries.forEach(entry => {
+        const opt = document.createElement("option");
+        opt.value = entry.key;
+        opt.textContent = entry.name;
+        if (entry.key === currentSelected) {
+            opt.selected = true;
+        }
+        aiSelect.appendChild(opt);
+    });
+
+    if (countBadge) {
+        countBadge.textContent = aiEntries.length;
+    }
+}
+
+// Handles selecting an AI user from the pulldown menu:
+// Highlights card with pulsing glow and opens/pins its details popover
+function handleAIUserSelection(selectedKey) {
+    selectedAIUserKey = selectedKey || null;
+
+    // Un-highlight and un-pin any existing cards
+    document.querySelectorAll('.persona-card.selected-highlight').forEach(c => {
+        c.classList.remove('selected-highlight');
+    });
+    document.querySelectorAll('.persona-card.popover-pinned').forEach(c => {
+        c.classList.remove('popover-pinned');
+    });
+
+    if (!selectedKey) return;
+
+    const card = activeCards[selectedKey];
+    if (card) {
+        card.classList.add('selected-highlight');
+        card.classList.add('popover-pinned');
+
+        const personaData = myObjectsByFirebaseKey[selectedKey];
+        const personaName = personaData ? (personaData.name || personaData.userName) : "AI Fake User";
+        showStatus(`🤖 ${personaName} selected! Card highlighted & details opened.`, false);
+        hideStatus(2500);
+    }
+}
+
+// -------------------------------------------------------------
+// DEDUPLICATION: Purges accidental duplicate cards from Firebase
+// -------------------------------------------------------------
+let cleanupDebounceTimer = null;
+
+function scheduleDuplicateCleanup() {
+    clearTimeout(cleanupDebounceTimer);
+    cleanupDebounceTimer = setTimeout(() => {
+        cleanupDuplicateCards();
+    }, 1500);
+}
+
+function cleanupDuplicateCards() {
+    const keys = Object.keys(myObjectsByFirebaseKey);
+    if (keys.length === 0) return;
+
+    const seenRealUsers = {};
+    const keysToDelete = [];
+
+    for (const key of keys) {
+        const item = myObjectsByFirebaseKey[key];
+        if (!item) continue;
+
+        // Target real users (not AI personas)
+        const isAI = item.isAI === true || (item.name && item.name.includes("(AI)"));
+        if (!isAI) {
+            const rawName = (item.name || item.userName || "").trim().toLowerCase();
+            const uid = item.creatorUid;
+            const ident = uid ? `uid:${uid}` : `name:${rawName}`;
+
+            if (ident && ident !== "name:") {
+                if (seenRealUsers[ident]) {
+                    // Duplicate found! Keep the first one seen, schedule this duplicate for deletion
+                    keysToDelete.push({ key, name: item.name || item.userName });
+                } else {
+                    seenRealUsers[ident] = key;
+                }
             }
         }
-
-        if (userCred && userCred.user) {
-            await updateProfile(userCred.user, {
-                displayName: userData.name,
-                photoURL: userData.photoURL
-            });
-        }
-        showStatus(`Signed in as ${userData.name}!`, false);
-        hideStatus(2500);
-    } catch (err) {
-        console.error("Login As error:", err);
-        // Fallback attempt: create and set profile
-        try {
-            let cred = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
-            await updateProfile(cred.user, { displayName: userData.name, photoURL: userData.photoURL });
-            showStatus(`Signed in as ${userData.name}!`, false);
-            hideStatus(2500);
-        } catch (createErr) {
-            showStatus(`Login failed: ${err.message}`, false);
-            hideStatus(3500);
-        }
     }
-}
 
-function showLoginButtons() {
-    authDiv.innerHTML = "";
-
-    // 1. Google Login
-    let signUpWithGoogleButton = document.createElement("button");
-    signUpWithGoogleButton.innerHTML = "Google Login";
-    signUpWithGoogleButton.setAttribute("id", "signInWithGoogle");
-    signUpWithGoogleButton.setAttribute("class", "authButton");
-    authDiv.appendChild(signUpWithGoogleButton);
-
-    // 2. Email Sign In / Sign Up
-    let emailDiv = document.createElement("div");
-    emailDiv.style.marginTop = "8px";
-    emailDiv.style.fontWeight = "600";
-    emailDiv.innerHTML = "Email Sign In";
-    authDiv.appendChild(emailDiv);
-
-    let emailInput = document.createElement("input");
-    emailInput.setAttribute("id", "email");
-    emailInput.setAttribute("class", "authInput");
-    emailInput.setAttribute("type", "text");
-    emailInput.setAttribute("placeholder", "email@domain.com");
-    authDiv.appendChild(emailInput);
-
-    let passwordInput = document.createElement("input");
-    passwordInput.setAttribute("id", "password");
-    passwordInput.setAttribute("type", "password");
-    passwordInput.setAttribute("class", "authInput");
-    passwordInput.setAttribute("placeholder", "password");
-    passwordInput.setAttribute("autocomplete", "on");
-    authDiv.appendChild(passwordInput);
-
-    let signUpWithEmailButton = document.createElement("button");
-    signUpWithEmailButton.innerHTML = "Sign Up";
-    signUpWithEmailButton.setAttribute("id", "signUpWithEmail");
-    signUpWithEmailButton.setAttribute("class", "authButton");
-    authDiv.appendChild(signUpWithEmailButton);
-
-    let signInWithEmailButton = document.createElement("button");
-    signInWithEmailButton.innerHTML = "Sign In";
-    signInWithEmailButton.setAttribute("id", "signInWithEmail");
-    signInWithEmailButton.setAttribute("class", "authButton");
-    authDiv.appendChild(signInWithEmailButton);
-
-    // 3. "Login As" Section with pull-down menu
-    let divider = document.createElement("hr");
-    divider.className = "authDivider";
-    authDiv.appendChild(divider);
-
-    let loginAsLabel = document.createElement("div");
-    loginAsLabel.className = "authSubHeader";
-    loginAsLabel.textContent = "Or Quick Login As:";
-    authDiv.appendChild(loginAsLabel);
-
-    let loginAsSelect = document.createElement("select");
-    loginAsSelect.setAttribute("id", "loginAsSelect");
-    loginAsSelect.className = "authSelect";
-
-    predefinedUsers.forEach((u, idx) => {
-        let opt = document.createElement("option");
-        opt.value = idx;
-        opt.textContent = `${u.name} (${u.email.split('@')[0]})`;
-        loginAsSelect.appendChild(opt);
-    });
-    authDiv.appendChild(loginAsSelect);
-
-    let loginAsButton = document.createElement("button");
-    loginAsButton.innerHTML = "Login As";
-    loginAsButton.setAttribute("id", "loginAsButton");
-    loginAsButton.setAttribute("class", "authButton loginAsBtn");
-    loginAsButton.title = "Log in as the selected user";
-    authDiv.appendChild(loginAsButton);
-
-    // Event Listeners
-    signUpWithGoogleButton.addEventListener("click", function (event) {
-        signInWithPopup(auth, googleAuthProvider)
-            .then((result) => {
-                console.log("Google signed in", result.user);
-            }).catch((error) => {
-                console.error("Google sign in error", error);
-            });
-        event.stopPropagation();
-    });
-
-    signInWithEmailButton.addEventListener("click", function (event) {
-        let email = document.getElementById("email").value;
-        let password = document.getElementById("password").value;
-        signInWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
-                console.log("Signed in with email", userCredential.user);
-            })
-            .catch((error) => {
-                alert(error.message);
-            });
-        event.stopPropagation();
-    });
-
-    signUpWithEmailButton.addEventListener("click", function (event) {
-        let email = document.getElementById("email").value;
-        let password = document.getElementById("password").value;
-        createUserWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
-                console.log("Signed up with email", userCredential.user);
-            })
-            .catch((error) => {
-                alert(error.message);
-            });
-        event.stopPropagation();
-    });
-
-    loginAsButton.addEventListener("click", function (event) {
-        event.stopPropagation();
-        const selectedIdx = parseInt(loginAsSelect.value, 10) || 0;
-        const targetUser = predefinedUsers[selectedIdx];
-        performLoginAs(targetUser);
-    });
+    if (keysToDelete.length > 0) {
+        console.warn(`[Deduplication] Removing ${keysToDelete.length} duplicate user card(s) from Firebase:`, keysToDelete);
+        keysToDelete.forEach(dup => {
+            deleteFromFirebase(exampleName, dup.key);
+        });
+        showStatus(`🧹 Removed ${keysToDelete.length} duplicate copy of ${keysToDelete[0].name}`, false);
+        hideStatus(3000);
+    }
 }
 
 function addNewThingToFirebase(folder, data) {
@@ -1225,6 +1497,8 @@ function subscribeToData() {
         if (!data) return;
         myObjectsByFirebaseKey[key] = data;
         createOrUpdatePersonaCard(key, data);
+        updateAIFakeUsersDropdown();
+        scheduleDuplicateCleanup();
     });
 
     onChildChanged(thisRef, (snapshot) => {
@@ -1233,6 +1507,7 @@ function subscribeToData() {
         if (!key || !data) return;
         myObjectsByFirebaseKey[key] = data;
         createOrUpdatePersonaCard(key, data);
+        updateAIFakeUsersDropdown();
     });
 
     onChildRemoved(thisRef, (snapshot) => {
@@ -1245,5 +1520,10 @@ function subscribeToData() {
         if (key && myObjectsByFirebaseKey[key]) {
             delete myObjectsByFirebaseKey[key];
         }
+        if (selectedAIUserKey === key) {
+            selectedAIUserKey = null;
+        }
+        updateAIFakeUsersDropdown();
     });
 }
+
