@@ -440,9 +440,24 @@ function hideStatus(delay = 3500) {
 
 // -------------------------------------------------------------
 // USER IDENTITY & PERMISSION SYSTEM
-// Supports Firebase Auth for the logged-in user
+// Supports both Firebase Auth and selected AI Fake User impersonation
 // -------------------------------------------------------------
 function getActiveUser() {
+    // 1. If an AI fake person is currently selected from the pulldown
+    if (selectedAIUserKey && myObjectsByFirebaseKey[selectedAIUserKey]) {
+        const fake = myObjectsByFirebaseKey[selectedAIUserKey];
+        const fakeName = fake.name || fake.userName || "AI Fake User";
+        return {
+            uid: selectedAIUserKey,
+            id: selectedAIUserKey,
+            name: fakeName,
+            email: `${fakeName.toLowerCase().replace(/[^a-z0-9]/g, '')}@sharedminds.ai`,
+            photoURL: fake.profilePictureURL || fake.imageURL || getFallbackAvatarUrl(fakeName),
+            isImpersonated: true,
+            isAI: true
+        };
+    }
+    // 2. Real user logged in via Firebase Auth
     if (auth && auth.currentUser) {
         const u = auth.currentUser;
         const realName = u.displayName || (u.email ? u.email.split('@')[0] : "Logged In User");
@@ -452,31 +467,51 @@ function getActiveUser() {
             name: realName,
             email: u.email,
             photoURL: u.photoURL || getFallbackAvatarUrl(realName),
-            isImpersonated: false
+            isImpersonated: false,
+            isAI: false
         };
     }
     return null;
 }
 
-// Determines if a given card belongs to the currently active logged-in user
-function isCardOwnedByActiveUser(cardData) {
-    const active = getActiveUser();
-    if (!active || !cardData) return false;
+// Determines if a given card belongs to the active user (either the impersonated fake user or the logged-in user)
+function isCardOwnedByActiveUser(cardData, cardKey) {
+    if (!cardData && !cardKey) return false;
 
-    // 1. By UID / ID match
-    if (cardData.creatorUid && (cardData.creatorUid === active.uid || cardData.creatorUid === active.id)) {
-        return true;
+    // 1. If an AI fake person is selected in the pulldown, grant permission for their card!
+    if (selectedAIUserKey) {
+        if (cardKey && cardKey === selectedAIUserKey) {
+            return true;
+        }
+        if (cardData && myObjectsByFirebaseKey[selectedAIUserKey] === cardData) {
+            return true;
+        }
     }
-    // 2. By Name match (case-insensitive)
-    const cardName = (cardData.name || cardData.userName || "").trim().toLowerCase();
-    const activeName = (active.name || "").trim().toLowerCase();
-    if (cardName && activeName && cardName === activeName) {
-        return true;
+
+    // 2. Real user logged in via Firebase Auth
+    if (auth && auth.currentUser) {
+        const u = auth.currentUser;
+        const targetUid = u.uid;
+        const realName = u.displayName || (u.email ? u.email.split('@')[0] : "");
+
+        if (cardData) {
+            // UID / ID match
+            if (cardData.creatorUid && (cardData.creatorUid === targetUid || cardData.creatorUid === u.uid)) {
+                return true;
+            }
+            // Name match (case-insensitive)
+            const cardName = (cardData.name || cardData.userName || "").trim().toLowerCase();
+            const activeName = realName.trim().toLowerCase();
+            if (cardName && activeName && cardName === activeName) {
+                return true;
+            }
+            // Email match
+            if (cardData.email && u.email && cardData.email.trim().toLowerCase() === u.email.trim().toLowerCase()) {
+                return true;
+            }
+        }
     }
-    // 3. By Email match
-    if (cardData.email && active.email && cardData.email.trim().toLowerCase() === active.email.trim().toLowerCase()) {
-        return true;
-    }
+
     return false;
 }
 
@@ -673,37 +708,42 @@ function updateCardContent(card, data) {
 // Updates UI controls & readonly states on a card depending on whether the active user owns it
 function updateCardPermissions(card, key, data) {
     if (!card || !data) return;
-    const isOwned = isCardOwnedByActiveUser(data);
+    const isOwned = isCardOwnedByActiveUser(data, key);
     const active = getActiveUser();
     const ownerName = data.name || data.userName || "this persona";
+    const isImpersonatingThis = (selectedAIUserKey && selectedAIUserKey === key);
 
     // Card movement & visual styling
     if (isOwned) {
         card.classList.add('is-own-card');
         card.classList.add('can-move');
-        card.title = "Your Card — Drag to move, hover or click to edit";
+        card.title = isImpersonatingThis
+            ? `🎭 ${ownerName} (Active) — Drag to move, click to edit details`
+            : "Your Card — Drag to move, hover or click to edit";
     } else {
         card.classList.remove('is-own-card');
         card.classList.remove('can-move');
         card.title = `${ownerName} — Hover or click to view details`;
     }
 
-    // YOU indicator on canvas name badge
+    // YOU / ACTIVE indicator on canvas name badge
     const youIndicator = card.querySelector('.you-indicator');
     if (youIndicator) {
         youIndicator.style.display = isOwned ? 'inline-block' : 'none';
+        youIndicator.textContent = isImpersonatingThis ? "ACTIVE" : "YOU";
     }
 
-    // Your Profile tag in modal header
+    // Your Profile / Impersonating tag in modal header
     const youTag = card.querySelector('.popover-you-tag');
     if (youTag) {
         youTag.style.display = isOwned ? 'inline-block' : 'none';
+        youTag.textContent = isImpersonatingThis ? "🎭 Impersonating" : "Your Profile";
     }
 
-    // Delete button: only owner can delete their card
+    // Delete button: only permanent owner can delete their card (not temporary impersonator)
     const deleteBtn = card.querySelector('.popover-delete-btn');
     if (deleteBtn) {
-        deleteBtn.style.display = isOwned ? 'flex' : 'none';
+        deleteBtn.style.display = (isOwned && !isImpersonatingThis) ? 'flex' : 'none';
     }
 
     // Prompt input & regenerate button
@@ -829,9 +869,13 @@ function setupCardEvents(card, key, data) {
         }
     });
 
-    // 2. Click avatar to pin/unpin modal open
+    // 2. Click avatar to pin/unpin modal open (ignore click right after drag)
     avatarWrapper.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (card._justDragged) {
+            card._justDragged = false;
+            return;
+        }
         card.classList.toggle('popover-pinned');
     });
 
@@ -843,7 +887,7 @@ function setupCardEvents(card, key, data) {
     if (deleteBtn) {
         deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (!isCardOwnedByActiveUser(data)) {
+            if (!isCardOwnedByActiveUser(data, key)) {
                 showStatus("🔒 You can only delete your own card.", false);
                 hideStatus(2500);
                 return;
@@ -857,10 +901,20 @@ function setupCardEvents(card, key, data) {
 
     // 5. Background & Mission live saving (only for owned card)
     if (bgInput) {
+        let bgSaveTimer = null;
         bgInput.addEventListener('mousedown', (e) => e.stopPropagation());
         bgInput.addEventListener('click', (e) => e.stopPropagation());
+        bgInput.addEventListener('input', () => {
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            data.background = bgInput.value;
+            clearTimeout(bgSaveTimer);
+            bgSaveTimer = setTimeout(() => {
+                updateJSONFieldInFirebase(exampleName + "/" + key + "/", { background: bgInput.value });
+            }, 800);
+        });
         bgInput.addEventListener('change', () => {
-            if (!isCardOwnedByActiveUser(data)) return;
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            clearTimeout(bgSaveTimer);
             const val = bgInput.value.trim();
             data.background = val;
             updateJSONFieldInFirebase(exampleName + "/" + key + "/", { background: val });
@@ -868,10 +922,20 @@ function setupCardEvents(card, key, data) {
     }
 
     if (missionInput) {
+        let missionSaveTimer = null;
         missionInput.addEventListener('mousedown', (e) => e.stopPropagation());
         missionInput.addEventListener('click', (e) => e.stopPropagation());
+        missionInput.addEventListener('input', () => {
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            data.mission = missionInput.value;
+            clearTimeout(missionSaveTimer);
+            missionSaveTimer = setTimeout(() => {
+                updateJSONFieldInFirebase(exampleName + "/" + key + "/", { mission: missionInput.value });
+            }, 800);
+        });
         missionInput.addEventListener('change', () => {
-            if (!isCardOwnedByActiveUser(data)) return;
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            clearTimeout(missionSaveTimer);
             const val = missionInput.value.trim();
             data.mission = val;
             updateJSONFieldInFirebase(exampleName + "/" + key + "/", { mission: val });
@@ -880,11 +944,29 @@ function setupCardEvents(card, key, data) {
 
     // 6. Prompt Textarea & Regenerate Button Handlers (only for owned card)
     if (promptInput) {
+        let promptSaveTimer = null;
+        promptInput.addEventListener('mousedown', (e) => e.stopPropagation());
+        promptInput.addEventListener('click', (e) => e.stopPropagation());
+        promptInput.addEventListener('input', () => {
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            data.prompt = promptInput.value;
+            clearTimeout(promptSaveTimer);
+            promptSaveTimer = setTimeout(() => {
+                updateJSONFieldInFirebase(exampleName + "/" + key + "/", { prompt: promptInput.value });
+            }, 800);
+        });
+        promptInput.addEventListener('change', () => {
+            if (!isCardOwnedByActiveUser(data, key)) return;
+            clearTimeout(promptSaveTimer);
+            const val = promptInput.value.trim();
+            data.prompt = val;
+            updateJSONFieldInFirebase(exampleName + "/" + key + "/", { prompt: val });
+        });
         promptInput.addEventListener('keydown', (e) => {
             e.stopPropagation();
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (isCardOwnedByActiveUser(data)) {
+                if (isCardOwnedByActiveUser(data, key)) {
                     triggerRegenerate();
                 }
             }
@@ -894,21 +976,17 @@ function setupCardEvents(card, key, data) {
     if (regenBtn) {
         regenBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (isCardOwnedByActiveUser(data)) {
+            if (isCardOwnedByActiveUser(data, key)) {
                 triggerRegenerate();
             }
         });
     }
 
     async function triggerRegenerate() {
-        if (!isCardOwnedByActiveUser(data)) {
+        if (!isCardOwnedByActiveUser(data, key)) {
             const active = getActiveUser();
             const ownerName = data.name || data.userName || "this persona";
-            if (!active) {
-                showStatus(`🔒 Please log in or impersonate ${ownerName} to edit this card.`, false);
-            } else {
-                showStatus(`🔒 You can only edit your own card! This card belongs to ${ownerName}.`, false);
-            }
+            showStatus(`🔒 Please select ${ownerName} in the AI Fake Users menu to edit this card.`, false);
             hideStatus(3000);
             return;
         }
@@ -980,20 +1058,17 @@ function attachCardDragHandlers(card, key, data) {
         }
 
         // STRICT PERMISSION CHECK: Only the logged in or impersonated user can move their own location!
-        if (!isCardOwnedByActiveUser(data)) {
+        if (!isCardOwnedByActiveUser(data, key)) {
             const active = getActiveUser();
             const ownerName = data.name || data.userName || "this persona";
-            if (!active) {
-                showStatus(`🔒 Please log in or choose a user to impersonate from the Auth menu to move your card.`, false);
-            } else {
-                showStatus(`🔒 You are currently "${active.name}". You can only move your own card! This card belongs to ${ownerName}.`, false);
-            }
+            showStatus(`🔒 Select ${ownerName} in the AI Fake Users menu to move this card.`, false);
             hideStatus(2800);
             return;
         }
 
         e.stopPropagation();
         isDraggingThis = true;
+        let hasMoved = false;
         card.classList.add('is-dragging');
         startMouseX = e.clientX;
         startMouseY = e.clientY;
@@ -1004,6 +1079,9 @@ function attachCardDragHandlers(card, key, data) {
             if (!isDraggingThis) return;
             const dx = moveEvent.clientX - startMouseX;
             const dy = moveEvent.clientY - startMouseY;
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                hasMoved = true;
+            }
             const currentX = Math.round(startPosX + dx);
             const currentY = Math.round(startPosY + dy);
             card.style.left = currentX + 'px';
@@ -1022,7 +1100,9 @@ function attachCardDragHandlers(card, key, data) {
 
             const dx = upEvent.clientX - startMouseX;
             const dy = upEvent.clientY - startMouseY;
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            if (hasMoved || Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                card._justDragged = true;
+                setTimeout(() => { card._justDragged = false; }, 150);
                 const finalX = Math.round(startPosX + dx);
                 const finalY = Math.round(startPosY + dy);
                 updateJSONFieldInFirebase(exampleName + "/" + key + "/position/", { x: finalX, y: finalY });
@@ -1143,10 +1223,13 @@ function initInterface() {
     bottomHint.textContent = '💡 Click GOD for AI personas • Select an AI Fake User from the pulldown below auth • Hover or click avatar for details';
     document.body.appendChild(bottomHint);
 
-    // 7. Clicking outside unpins any pinned modal
+    // 7. Clicking outside unpins any pinned modal (except for the active impersonated card)
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.persona-card')) {
+        if (!e.target.closest('.persona-card') && !e.target.closest('#rightSidebar')) {
             document.querySelectorAll('.persona-card.popover-pinned').forEach(c => {
+                if (selectedAIUserKey && c === activeCards[selectedAIUserKey]) {
+                    return; // Keep impersonated person modal pinned open for typing/editing
+                }
                 c.classList.remove('popover-pinned');
             });
         }
@@ -1346,7 +1429,7 @@ function updateAIFakeUsersDropdown() {
     if (!aiSelect) return;
 
     const currentSelected = selectedAIUserKey || aiSelect.value;
-    aiSelect.innerHTML = `<option value="">-- Select AI Fake User --</option>`;
+    aiSelect.innerHTML = `<option value="">${selectedAIUserKey ? "🚫 Stop Impersonating (View Only)" : "-- Select AI Fake User --"}</option>`;
 
     let aiEntries = [];
 
@@ -1369,8 +1452,9 @@ function updateAIFakeUsersDropdown() {
     aiEntries.forEach(entry => {
         const opt = document.createElement("option");
         opt.value = entry.key;
-        opt.textContent = entry.name;
-        if (entry.key === currentSelected) {
+        const isActive = (entry.key === currentSelected);
+        opt.textContent = isActive ? `✓ ${entry.name} (Active)` : entry.name;
+        if (isActive) {
             opt.selected = true;
         }
         aiSelect.appendChild(opt);
@@ -1382,7 +1466,7 @@ function updateAIFakeUsersDropdown() {
 }
 
 // Handles selecting an AI user from the pulldown menu:
-// Highlights card with pulsing glow and opens/pins its details popover
+// Grants move and edit permissions, highlights card with pulsing glow, and opens/pins its details popover
 function handleAIUserSelection(selectedKey) {
     selectedAIUserKey = selectedKey || null;
 
@@ -1394,7 +1478,15 @@ function handleAIUserSelection(selectedKey) {
         c.classList.remove('popover-pinned');
     });
 
-    if (!selectedKey) return;
+    // Refresh all cards permissions so the newly selected person becomes editable & movable!
+    refreshAllCardsPermissions();
+
+    if (!selectedKey) {
+        showStatus("Stopped impersonating. Cards are now in view-only mode.", false);
+        hideStatus(2500);
+        updateAIFakeUsersDropdown();
+        return;
+    }
 
     const card = activeCards[selectedKey];
     if (card) {
@@ -1403,9 +1495,14 @@ function handleAIUserSelection(selectedKey) {
 
         const personaData = myObjectsByFirebaseKey[selectedKey];
         const personaName = personaData ? (personaData.name || personaData.userName) : "AI Fake User";
-        showStatus(`🤖 ${personaName} selected! Card highlighted & details opened.`, false);
-        hideStatus(2500);
+        showStatus(`🎭 Now impersonating ${personaName}! You can move their card & type in their modal.`, false);
+        hideStatus(3500);
+
+        // Smoothly scroll into view if card is offscreen
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     }
+
+    updateAIFakeUsersDropdown();
 }
 
 // -------------------------------------------------------------

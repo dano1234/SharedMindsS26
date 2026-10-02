@@ -476,7 +476,9 @@ body {
     transition: transform 0.2s ease, filter 0.2s ease;
 }
 
-.persona-card.can-move {
+.persona-card.can-move,
+.persona-card.can-move .persona-avatar-wrapper,
+.persona-card.can-move .persona-name-badge {
     cursor: grab;
 }
 
@@ -486,8 +488,10 @@ body {
 }
 
 .persona-card.can-move:active,
-.persona-card.is-dragging {
-    cursor: grabbing;
+.persona-card.can-move .persona-avatar-wrapper:active,
+.persona-card.is-dragging,
+.persona-card.is-dragging .persona-avatar-wrapper {
+    cursor: grabbing !important;
     transform: scale(1.05);
     z-index: 1000;
     filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.6));
