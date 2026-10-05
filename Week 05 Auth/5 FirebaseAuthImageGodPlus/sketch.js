@@ -405,9 +405,93 @@ function getFallbackPersona(theme) {
     return list[Math.floor(Math.random() * list.length)];
 }
 
-function getFallbackAvatarUrl(name) {
-    return `https://i.pravatar.cc/300?u=${encodeURIComponent(name)}`;
+// -------------------------------------------------------------
+// REALISTIC PORTRAITS & RESILIENT FALLBACK AVATARS
+// -------------------------------------------------------------
+const REALISTIC_PORTRAITS = [
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&h=300&q=80",
+    "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=300&h=300&q=80"
+];
+
+function getFallbackAvatarSvg(name) {
+    const cleanName = (name || "User").replace(/\(AI\)/g, "").trim();
+    const initials = cleanName
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(p => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase() || cleanName.slice(0, 2).toUpperCase() || "U";
+
+    const palettes = [
+        ['#6366f1', '#a855f7'],
+        ['#3b82f6', '#06b6d4'],
+        ['#ec4899', '#f43f5e'],
+        ['#10b981', '#14b8a6'],
+        ['#f59e0b', '#ef4444'],
+        ['#8b5cf6', '#d946ef'],
+        ['#0ea5e9', '#3b82f6'],
+        ['#14b8a6', '#3b82f6'],
+        ['#f97316', '#e11d48']
+    ];
+
+    let hash = 0;
+    for (let i = 0; i < cleanName.length; i++) {
+        hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const pair = palettes[Math.abs(hash) % palettes.length];
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+        <defs>
+            <linearGradient id="bg_${Math.abs(hash)}" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="${pair[0]}" />
+                <stop offset="100%" stop-color="${pair[1]}" />
+            </linearGradient>
+            <filter id="shadow_${Math.abs(hash)}" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+            </filter>
+        </defs>
+        <rect width="120" height="120" rx="60" fill="url(#bg_${Math.abs(hash)})" />
+        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2" />
+        <text x="60" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="middle" filter="url(#shadow_${Math.abs(hash)})">${initials}</text>
+    </svg>`;
+
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
+
+function getFallbackAvatarUrl(name) {
+    if (!name) return REALISTIC_PORTRAITS[0];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % REALISTIC_PORTRAITS.length;
+    return REALISTIC_PORTRAITS[idx];
+}
+
+function sanitizeProfilePicUrl(url, name) {
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+        return getFallbackAvatarUrl(name);
+    }
+    // If it's a known dead/broken CDN url (e.g. pravatar), replace with realistic portrait
+    if (url.includes('pravatar.cc')) {
+        return getFallbackAvatarUrl(name);
+    }
+    return url;
+}
+
+// Expose on window for inline img onerror handlers
+window.getFallbackAvatarSvg = getFallbackAvatarSvg;
+window.getFallbackAvatarUrl = getFallbackAvatarUrl;
+window.sanitizeProfilePicUrl = sanitizeProfilePicUrl;
 
 function getFallbackSceneUrl(prompt) {
     return `https://picsum.photos/seed/${encodeURIComponent((prompt || "scene").slice(0, 10))}/512/512`;
@@ -452,7 +536,7 @@ function getActiveUser() {
             id: selectedAIUserKey,
             name: fakeName,
             email: `${fakeName.toLowerCase().replace(/[^a-z0-9]/g, '')}@sharedminds.ai`,
-            photoURL: fake.profilePictureURL || fake.imageURL || getFallbackAvatarUrl(fakeName),
+            photoURL: sanitizeProfilePicUrl(fake.profilePictureURL || fake.imageURL, fakeName),
             isImpersonated: true,
             isAI: true
         };
@@ -466,7 +550,7 @@ function getActiveUser() {
             id: u.uid,
             name: realName,
             email: u.email,
-            photoURL: u.photoURL || getFallbackAvatarUrl(realName),
+            photoURL: sanitizeProfilePicUrl(u.photoURL, realName),
             isImpersonated: false,
             isAI: false
         };
@@ -530,7 +614,7 @@ function createOrUpdatePersonaCard(key, data) {
     const isAI = data.isAI !== false; // Default true (fake persona) unless explicitly false (real user)
     const rawName = data.name || data.userName || (isAI ? "Persona" : "User");
     const displayName = formatUserName(rawName, isAI);
-    const profilePic = data.profilePictureURL || data.imageURL || getFallbackAvatarUrl(rawName);
+    const profilePic = sanitizeProfilePicUrl(data.profilePictureURL || data.imageURL, rawName);
     const background = data.background || "";
     const mission = data.mission || "";
     const prompt = data.prompt || "";
@@ -545,7 +629,7 @@ function createOrUpdatePersonaCard(key, data) {
         card.innerHTML = `
             <!-- Screen Display: Profile Picture and Name -->
             <div class="persona-avatar-wrapper" title="Click to pin details, hover to view">
-                <img class="persona-avatar-img" src="${profilePic}" alt="${displayName}" loading="lazy" />
+                <img class="persona-avatar-img" src="${profilePic}" alt="${displayName}" loading="lazy" onerror="this.onerror=null; this.src=window.getFallbackAvatarSvg ? window.getFallbackAvatarSvg(this.alt) : '';" />
             </div>
             <div class="persona-name-badge">
                 <span class="persona-name-text">${displayName}</span>
@@ -556,7 +640,7 @@ function createOrUpdatePersonaCard(key, data) {
             <div class="persona-details-popover">
                 <!-- Header -->
                 <div class="popover-header">
-                    <img class="popover-mini-avatar" src="${profilePic}" alt="${displayName}" />
+                    <img class="popover-mini-avatar" src="${profilePic}" alt="${displayName}" onerror="this.onerror=null; this.src=window.getFallbackAvatarSvg ? window.getFallbackAvatarSvg(this.alt) : '';" />
                     <div class="popover-title-group">
                         <div class="popover-name-row" style="display:flex;align-items:center;">
                             <span class="popover-name">${displayName}</span>
@@ -576,7 +660,7 @@ function createOrUpdatePersonaCard(key, data) {
                             <span>No image generated yet.</span>
                             <span style="font-size:11px;color:#94a3b8;">Enter a prompt below and click "Regenerate Image"!</span>
                         </div>
-                        <img class="popover-prompt-image" src="${imageURL}" alt="${prompt}" loading="lazy" style="${imageURL ? 'display:block;' : 'display:none;'}" />
+                        <img class="popover-prompt-image" src="${imageURL}" alt="${prompt}" loading="lazy" style="${imageURL ? 'display:block;' : 'display:none;'}" onerror="this.style.display='none'; const ph = this.parentElement.querySelector('.popover-prompt-image-placeholder'); if (ph) ph.style.display='flex';" />
                         <div class="image-loading-overlay">
                             <span class="spinner"></span>
                             <span>Painting with Flux...</span>
@@ -643,7 +727,7 @@ function updateCardContent(card, data) {
     const isAI = data.isAI !== false;
     const rawName = data.name || data.userName || (isAI ? "Persona" : "User");
     const displayName = formatUserName(rawName, isAI);
-    const profilePic = data.profilePictureURL || data.imageURL || getFallbackAvatarUrl(rawName);
+    const profilePic = sanitizeProfilePicUrl(data.profilePictureURL || data.imageURL, rawName);
     const imageURL = data.imageURL || "";
 
     const nameText = card.querySelector('.persona-name-text');
@@ -659,14 +743,30 @@ function updateCardContent(card, data) {
     }
 
     const avatarImg = card.querySelector('.persona-avatar-img');
-    if (avatarImg && avatarImg.src !== profilePic) avatarImg.src = profilePic;
+    if (avatarImg) {
+        avatarImg.onerror = () => {
+            avatarImg.onerror = null;
+            avatarImg.src = getFallbackAvatarSvg(displayName);
+        };
+        if (avatarImg.src !== profilePic) avatarImg.src = profilePic;
+    }
 
     const miniAvatar = card.querySelector('.popover-mini-avatar');
-    if (miniAvatar && miniAvatar.src !== profilePic) miniAvatar.src = profilePic;
+    if (miniAvatar) {
+        miniAvatar.onerror = () => {
+            miniAvatar.onerror = null;
+            miniAvatar.src = getFallbackAvatarSvg(displayName);
+        };
+        if (miniAvatar.src !== profilePic) miniAvatar.src = profilePic;
+    }
 
     const popoverPromptImg = card.querySelector('.popover-prompt-image');
     const placeholder = card.querySelector('.popover-prompt-image-placeholder');
     if (popoverPromptImg) {
+        popoverPromptImg.onerror = () => {
+            popoverPromptImg.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'flex';
+        };
         if (imageURL) {
             if (popoverPromptImg.src !== imageURL) popoverPromptImg.src = imageURL;
             popoverPromptImg.style.display = 'block';
@@ -1294,7 +1394,7 @@ function ensureUserCardExists(user) {
     }
 
     const safePos = getRandomSafeLocation();
-    const defaultAvatar = user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(realName)}&backgroundColor=6366f1`;
+    const defaultAvatar = sanitizeProfilePicUrl(user.photoURL, realName);
 
     const userCardData = {
         type: "user",
@@ -1330,9 +1430,9 @@ function renderAuthInterface() {
         const realName = u.displayName || u.email || "Logged In User";
         const banner = document.createElement("div");
         banner.className = "authActiveUserBanner loggedIn";
-        const photo = u.photoURL || getFallbackAvatarUrl(realName);
+        const photo = sanitizeProfilePicUrl(u.photoURL, realName);
         banner.innerHTML = `
-            <img src="${photo}" class="authAvatar" alt="${realName}" />
+            <img src="${photo}" class="authAvatar" alt="${realName}" onerror="this.onerror=null; this.src=window.getFallbackAvatarSvg ? window.getFallbackAvatarSvg(this.alt) : '';" />
             <div class="authUserInfo">
                 <div class="authUserName">${realName}</div>
                 <div class="authUserRole">✓ Logged In (Real User)</div>
