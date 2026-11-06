@@ -48,10 +48,9 @@ async function askPictures(promptWord, location) {
 
     document.body.style.cursor = "progress";
     const data = {
-        model: "google/nano-banana-2",
+        model: "google/imagen-4-fast",
         input: {
-            prompt: promptWord,
-            aspect_ratio: "1:1",
+            prompt: promptWord
         },
     };
     console.log("Making a Fetch Request", data);
@@ -198,8 +197,7 @@ function isOverJSONObject(jsonObject, x, y) {
 }
 function displayJSONObject(jsonObject) {
     let ctx = canvas.getContext('2d');
-    // Skip broken or not-yet-loaded images
-    if (!jsonObject.img || !jsonObject.img.complete || jsonObject.img.naturalWidth === 0) return;
+    // Update logic for the visual object
     ctx.drawImage(jsonObject.img, jsonObject.x, jsonObject.y, jsonObject.width, jsonObject.height);
     ctx.font = '20px Arial';
     ctx.fillStyle = 'black';
@@ -219,8 +217,6 @@ function loadJSONFromLocalStorage() {
         console.log("No JSON found in localStorage");
         return [];
     }
-    // Filter out entries with missing imageURL (from previous failed requests)
-    loadedJSON = loadedJSON.filter(item => item.imageURL);
     for (let i = 0; i < loadedJSON.length; i++) {
         let thisVisualObject = loadedJSON[i];
         let img = document.createElement("img");

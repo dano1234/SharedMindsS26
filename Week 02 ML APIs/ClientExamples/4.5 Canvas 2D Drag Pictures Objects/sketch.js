@@ -45,10 +45,9 @@ async function askPictures(promptWord, location) {
 
     document.body.style.cursor = "progress";
     const data = {
-        model: "google/nano-banana-2",
+        model: "google/imagen-4-fast",
         input: {
-            prompt: promptWord,
-            aspect_ratio: "1:1",
+            prompt: promptWord
         },
     };
     console.log("Making a Fetch Request", data);
