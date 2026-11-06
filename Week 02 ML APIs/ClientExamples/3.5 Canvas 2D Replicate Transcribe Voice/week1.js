@@ -59,7 +59,7 @@ async function askVoiceThenWord(audio, location) {
         //proxy will convert this base64 audio to a url
         fieldToConvertBase64ToURL: "audio",
         fileFormat: "wav",
-        version: "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c",
+        version: "vaibhavs10/incredibly-fast-whisper:c6433aab18b7318bbae316495f1a097fc067deef7d59dc2f33e45077ae5956c7",
         input: {
             audio: b64Audio,
         },
