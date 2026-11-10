@@ -1,3 +1,5 @@
+const DEFAULT_COLAB_URL = "https://itp-ima-class-image-api.loca.lt";
+
 document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const urlInput = document.getElementById('url-input');
@@ -9,8 +11,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLoader = document.getElementById('btn-loader');
     const resultContainer = document.getElementById('result-container');
 
+    if (urlInput && !urlInput.value) {
+        urlInput.value = DEFAULT_COLAB_URL;
+    }
+
+    function formatUrl(rawUrl) {
+        let url = rawUrl.trim();
+        if (!url) return '';
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+        }
+        if (!url.includes('.') && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+            url = url + '.loca.lt';
+        }
+        if (url.endsWith('/')) {
+            url = url.slice(0, -1);
+        }
+        if (!url.endsWith('/generate')) {
+            url += '/generate';
+        }
+        return url;
+    }
+
     generateBtn.addEventListener('click', async () => {
-        let url = urlInput.value.trim();
+        let url = urlInput.value.trim() || DEFAULT_COLAB_URL;
         const prompt = promptInput.value.trim();
 
         // 1. Basic Local Validation
@@ -20,18 +44,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // 2. Prepare URL
-        // Ensure not fetching to the root URL if they forgot the /generate route
-        if (url.endsWith('/')) {
-            url = url.slice(0, -1);
-        }
-        if (!url.endsWith('/generate')) {
-            url += '/generate';
-        }
+        url = formatUrl(url);
 
         // 3. UI Loading State
         setLoadingState(true);
         hideError();
-        
+
         // Hide previous image during loading to simulate fresh start
         resultImage.style.display = 'none';
         placeholderText.textContent = "Generating your image (this may take a bit)...";
@@ -67,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 5. Read Binary Response (Image Bytes)
             const imageBlob = await response.blob();
-            
+
             // 6. Release old Object URL if there was one (memory management)
             if (resultImage.src) {
                 URL.revokeObjectURL(resultImage.src);
@@ -76,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 7. Render Image
             const objectURL = URL.createObjectURL(imageBlob);
             resultImage.src = objectURL;
-            
+
             resultImage.onload = () => {
                 resultImage.style.display = 'block';
                 placeholderText.style.display = 'none';
