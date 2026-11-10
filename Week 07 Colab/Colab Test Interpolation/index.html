@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="app-container">
         <header>
@@ -17,8 +19,11 @@
 
         <section class="global-settings">
             <div class="input-group">
-                <label for="url-input">Localtunnel URL <small style="font-weight: 400; opacity: 0.8; font-size: 0.8em;">(copy from output box of last cell in colab notebook)</small></label>
-                <input type="url" id="url-input" placeholder="https://itp-ima-class-image-interpolate-api.loca.lt" value="https://itp-ima-class-image-interpolate-api.loca.lt" required>
+                <label for="url-input">Localtunnel URL <small
+                           style="font-weight: 400; opacity: 0.8; font-size: 0.8em;">(copy from output box of last cell
+                        in colab notebook)</small></label>
+                <input type="url" id="url-input" placeholder="https://itp-ima-class-image-interpolate-api-v2.loca.lt"
+                       value="https://itp-ima-class-image-interpolate-api-v2.loca.lt" autocomplete="off" required>
             </div>
             <div id="global-error" class="error-message" style="display: none;"></div>
         </section>
@@ -28,7 +33,8 @@
             <div class="panel left-panel">
                 <h2>Image A</h2>
                 <div class="input-group">
-                    <textarea id="prompt-a" rows="3" required>A cute fluffy white cat sitting on a couch, highly detailed photography</textarea>
+                    <textarea id="prompt-a" rows="3"
+                              required>A cute fluffy white cat sitting on a couch, highly detailed photography</textarea>
                 </div>
                 <button id="btn-generate-Left" class="generate-btn">
                     <span class="btn-text">Generate Left</span>
@@ -67,7 +73,8 @@
             <div class="panel right-panel">
                 <h2>Image B</h2>
                 <div class="input-group">
-                    <textarea id="prompt-b" rows="3" required>A fierce metallic robot tiger prowling in a futuristic cyberpunk city</textarea>
+                    <textarea id="prompt-b" rows="3"
+                              required>A fierce metallic robot tiger prowling in a futuristic cyberpunk city</textarea>
                 </div>
                 <button id="btn-generate-Right" class="generate-btn">
                     <span class="btn-text">Generate Right</span>
@@ -83,4 +90,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

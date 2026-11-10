@@ -1,41 +1,41 @@
-const DEFAULT_COLAB_URL = "https://itp-ima-class-image-interpolate-api.loca.lt";
+const DEFAULT_COLAB_URL = "https://itp-ima-class-image-interpolate-api-v2.loca.lt";
 
 document.addEventListener('DOMContentLoaded', () => {
     // Globals
     const urlInput = document.getElementById('url-input');
     const globalError = document.getElementById('global-error');
 
-    if (urlInput && !urlInput.value) {
-        urlInput.value = DEFAULT_COLAB_URL;
-    }
+        if (urlInput) {
+            urlInput.value = DEFAULT_COLAB_URL;
+        }
 
-    // Left
-    const btnLeft = document.getElementById('btn-generate-Left');
-    const promptLeft = document.getElementById('prompt-a');
-    const imgLeft = document.getElementById('image-Left');
-    const phLeft = document.getElementById('placeholder-Left');
-    const loaderLeft = document.getElementById('loader-Left');
+        // Left
+        const btnLeft = document.getElementById('btn-generate-Left');
+        const promptLeft = document.getElementById('prompt-a');
+        const imgLeft = document.getElementById('image-Left');
+        const phLeft = document.getElementById('placeholder-Left');
+        const loaderLeft = document.getElementById('loader-Left');
 
-    // Right
-    const btnRight = document.getElementById('btn-generate-Right');
-    const promptRight = document.getElementById('prompt-b');
-    const imgRight = document.getElementById('image-Right');
-    const phRight = document.getElementById('placeholder-Right');
-    const loaderRight = document.getElementById('loader-Right');
+        // Right
+        const btnRight = document.getElementById('btn-generate-Right');
+        const promptRight = document.getElementById('prompt-b');
+        const imgRight = document.getElementById('image-Right');
+        const phRight = document.getElementById('placeholder-Right');
+        const loaderRight = document.getElementById('loader-Right');
 
-    // Middle
-    const btnInterp = document.getElementById('btn-interpolate');
-    const imgInterp = document.getElementById('image-Middle');
-    const phInterp = document.getElementById('placeholder-Middle');
-    const loaderInterp = document.getElementById('loader-Interpolate');
-    const sliderContainer = document.getElementById('slider-container');
-    const slider = document.getElementById('interpolation-slider');
-    const stepLabel = document.getElementById('step-label');
+        // Middle
+        const btnInterp = document.getElementById('btn-interpolate');
+        const imgInterp = document.getElementById('image-Middle');
+        const phInterp = document.getElementById('placeholder-Middle');
+        const loaderInterp = document.getElementById('loader-Interpolate');
+        const sliderContainer = document.getElementById('slider-container');
+        const slider = document.getElementById('interpolation-slider');
+        const stepLabel = document.getElementById('step-label');
 
-    // State
-    let hasLeft = false;
-    let hasRight = false;
-    let cachedImages = [];
+        // State
+        let hasLeft = false;
+        let hasRight = false;
+        let cachedImages = [];
 
         function formatUrl(rawUrl) {
             let url = rawUrl.trim();
