@@ -188,14 +188,12 @@ function initInterface() {
 
     snapButton.addEventListener('click', () => {
         const keys = Object.keys(allDrawings);
-        const halfCount = Math.floor(keys.length / 2);
-        const shuffled = keys.sort(() => Math.random() - 0.5);
-        const toDelete = shuffled.slice(0, halfCount);
-
-        for (let key of toDelete) {
-            deleteFromFirebase('drawings', key);
+        if (keys.length > 0) {
+            const randomIndex = Math.floor(Math.random() * keys.length);
+            const keyToDelete = keys[randomIndex];
+            deleteFromFirebase('drawings', keyToDelete);
+            console.log(`Snapped ${keyToDelete} out of existence`);
         }
-        console.log(`Snapped ${toDelete.length} items out of existence`);
     });
 
 }
